@@ -1,0 +1,39 @@
+{
+  "name": "docmanbackend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node src/index.js",
+    "prepare": "husky"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@eslint/js": "^9.21.0",
+    "dotenv": "^16.4.7",
+    "eslint": "^9.21.0",
+    "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
+    "nodemon": "^3.1.9",
+    "prettier": "3.5.3",
+    "prisma": "^6.4.1",
+    "typescript": "^5.8.2"
+  },
+  "lint-staged": {
+    "**/*.{js}": [
+      "prettier --write --ignore-unknown",
+      "eslint --fix"
+    ]
+  },
+  "dependencies": {
+    "@prisma/client": "^6.4.1",
+    "chokidar": "^4.0.3",
+    "express": "^4.21.2",
+    "p-limit": "^6.2.0"
+  }
+}
