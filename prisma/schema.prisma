@@ -10,9 +10,13 @@ model book{
   id Int @id  @default(autoincrement())
   title String @db.VarChar(255) 
   thumbnailPath String  
-  tags String[] 
+  tags tag[] 
   path String @db.VarChar(500) @unique()
   description String? @db.Text()
   lastOpened DateTime? 
 }
-
+model tag{
+id Int @id @default(autoincrement())
+name String @unique()
+book book[] 
+}

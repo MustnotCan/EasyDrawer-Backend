@@ -2,34 +2,36 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 export async function saveBook(name, path, atime, tags, thumbnailPath) {
+  const bookTags = tags.map((ele) => ele.split(",")).flat();
   try {
-    await prisma.book
-      .upsert({
-        where: { path: path },
-        update: {},
-        create: {
-          title: name,
-          path: path,
-          lastOpened: atime,
-          tags: tags,
-          thumbnailPath: thumbnailPath,
-        },
-      })
-      .then(console.log(`${name}` + " saved successfully"));
+    for (const tag of bookTags) {
+      await addTag(tag);
+    }
+    return await prisma.book.upsert({
+      where: { path: path },
+      update: {},
+      create: {
+        title: name,
+        path: path,
+        lastOpened: atime,
+        tags: { connect: bookTags.map((tag) => ({ name: tag })) },
+        thumbnailPath: thumbnailPath,
+      },
+    });
   } catch (e) {
     console.log(name, "error happened when saving a book \n", e);
   }
 }
-export async function existInDb(name) {
+export async function bookInDb(name) {
   try {
-    const result = await prisma.book.findUnique({ where: { title: name } });
-    return result; // Explicitly return the result
+    const result = await prisma.book.findMany({ where: { title: name } });
+    return result;
   } catch (e) {
     console.error("Error happened when looking for a book:\n", e);
-    return null; // Return null to indicate an error or no result
+    return null;
   }
 }
-export async function getFilesFromDB(size, cursor) {
+export async function getBooksFromDB(size, cursor) {
   try {
     const result = await prisma.book.findMany({
       take: size,
@@ -48,15 +50,15 @@ export async function getFilesFromDB(size, cursor) {
 export async function emptyDB() {
   try {
     await prisma.book.deleteMany();
+    await prisma.tag.deleteMany();
   } catch (e) {
     console.log("Error while emptying db", e);
   }
 }
-//await emptyDB()
 
-export async function removeByPath(filePath) {
+export async function deleteBookByPath(filePath) {
   try {
-    await prisma.book.delete({ where: { path: filePath } });
+    return await prisma.book.delete({ where: { path: filePath } });
   } catch (error) {
     console.error("error deleting file", error);
     return null;
@@ -64,6 +66,72 @@ export async function removeByPath(filePath) {
 }
 export async function getRecordsNumber() {
   const count = await prisma.book.count();
-  console.log(count);
   return count;
+}
+export async function addTag(tagName) {
+  try {
+    await prisma.tag.upsert({
+      create: { name: tagName },
+      update: {},
+      where: { name: tagName },
+    });
+  } catch (err) {
+    console.log("Error while adding tag:\n", err);
+  }
+}
+export async function findBooksByName(bookTitle) {
+  try {
+    return await prisma.book.findMany({ where: { title: bookTitle } });
+  } catch (err) {
+    console.log("Error fetching books by title:\n", err);
+  }
+}
+export async function findTagsByName(tagName) {
+  try {
+    return await prisma.tag.findMany({ where: { name: tagName } });
+  } catch (err) {
+    console.log("Error fetching books by name:\n", err);
+  }
+}
+export async function addTagToBook(tagId, bookId) {
+  try {
+    await prisma.book.update({
+      data: { tags: { connect: [{ id: tagId }] } },
+      where: { id: bookId },
+    });
+
+    return true;
+  } catch (err) {
+    console.log("Error while adding tag to a book:\n", err);
+    return false;
+  }
+}
+export async function removeTagFromBook(tagId, bookId) {
+  try {
+    await prisma.book.update({
+      data: { tags: { disconnect: [{ id: tagId }] } },
+      where: { id: bookId },
+    });
+    return true;
+  } catch (err) {
+    if (
+      err.meta.cause ==
+      "No parent record was found for a nested disconnect on relation 'bookTotag'."
+    ) {
+      return true;
+    }
+    console.log("Error while adding tag to a book:\n", err);
+    return false;
+  }
+}
+export async function deleteTagById(tagId) {
+  try {
+    return await prisma.tag.delete({ where: { id: tagId } });
+  } catch (err) {
+    if (err.meta.cause == "Record to delete does not exist.") {
+      return true;
+    }
+    console.log("Error while adding tag to a book:\n", err);
+    return null;
+  }
 }

@@ -1,10 +1,12 @@
 import express from "express";
 import { getFilesFromDB } from "../db/index.js";
-
+import { configDotenv } from "dotenv";
+import { env } from "node:process";
+configDotenv();
 const app = express();
 
-app.use("/images", express.static("/home/saif/thumbnails"));
-app.use("/pdfs", express.static("/home/saif/Desktop/Learn/"));
+app.use("/images", express.static(env.FOLDER_PATH));
+app.use("/pdfs", express.static(env.THUMBNAIL_FOLDER));
 
 app.get("/", async (req, res) => {
   try {
