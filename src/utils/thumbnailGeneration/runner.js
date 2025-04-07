@@ -1,11 +1,13 @@
-import { Worker } from "worker_threads";
+import { Worker } from "node:worker_threads";
 
-export default function runInWorker(name, path) {
+export default function runInWorker(resolvedPath, uuid) {
   return new Promise((resolve, reject) => {
     //console.log("working on: ", name);
     const worker = new Worker(
-      "/home/saif/Coding/Projects/nodejs projects/docManBackend/src/utils/thumbnailGeneration/thumb_worker.js",
-      { workerData: { name, path } },
+      "./src/utils/thumbnailGeneration/thumb_worker.js",
+      {
+        workerData: { resolvedPath, uuid },
+      },
     );
     //worker.on("message", (message) => console.log(message));
     worker.on("error", (err) => reject(err));

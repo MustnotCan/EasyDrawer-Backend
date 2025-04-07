@@ -6,11 +6,8 @@ import { exec } from "child_process";
 import path from "path";
 
 configDotenv();
-async function savePdfThumbnail(name, pdfPath) {
-  const filePath = path.join(
-    env.THUMBNAIL_FOLDER,
-    name.replace(/\.pdf$/, ".webp"),
-  );
+async function savePdfThumbnail(pdfPath, uuid) {
+  const filePath = path.join(env.THUMBNAIL_FOLDER, uuid);
 
   try {
     await fs.access(filePath);
@@ -22,7 +19,7 @@ async function savePdfThumbnail(name, pdfPath) {
         const generatedPng = `${outputBase}.ppm`;
         const webpFile = `${filePath}.webp`;
         exec(
-          `pdftoppm -f 1 -l 1 -singlefile "${pdfPath}" "${outputBase}" && cwebp "${generatedPng}" -o "${webpFile}" && rm "${outputBase}.ppm"`,
+          `pdftoppm -f 1 -l 1 -singlefile -cropbox "${pdfPath}" "${outputBase}" && cwebp -q 100 -resize 250 300 "${generatedPng}" -o "${webpFile}" && rm "${outputBase}.ppm"`,
           (error, stdout, stderr) => {
             if (error) {
               console.log("Error during thumbnail generation:", error);
@@ -30,7 +27,6 @@ async function savePdfThumbnail(name, pdfPath) {
               reject(error);
               return;
             }
-            resolve(webpFile);
           },
         );
       }).catch((error) => {
@@ -43,10 +39,6 @@ async function savePdfThumbnail(name, pdfPath) {
   }
 }
 
-savePdfThumbnail(workerData.name, workerData.path)
-  .then(() => {
-    //parentPort.postMessage(`${workerData.name} Thumbnail saved successfully!`);
-  })
-  .catch((err) => {
-    parentPort.postMessage(`Error: ${err.message}`);
-  });
+savePdfThumbnail(workerData.resolvedPath, workerData.uuid).catch((err) => {
+  parentPort.postMessage(`Error: ${err.message}`);
+});
