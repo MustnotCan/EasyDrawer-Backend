@@ -3,8 +3,8 @@ import { saveBook, findBooksByPath } from "../../db/bookModel.js";
 import path from "node:path";
 import { configDotenv } from "dotenv";
 import { env } from "node:process";
-import { thumbnailFile } from "../thumbnailGeneration/addingThumbnails.js";
 import { randomUUID } from "node:crypto";
+import { addToQueue } from "../thumbnailGeneration/test1.js";
 configDotenv();
 export async function addPdfToDb(filePath) {
   const relativePath = filePath.slice(env.FOLDER_PATH.length, filePath.length);
@@ -31,7 +31,7 @@ export async function addPdfToDb(filePath) {
       console.log("Thumbnail not found");
       console.log("Generating...");
       console.log("uuid:", savedBook.id);
-      thumbnailFile(filePath, savedBook.id);
+      addToQueue(filePath, savedBook.id);
     });
   } catch (err) {
     return err;

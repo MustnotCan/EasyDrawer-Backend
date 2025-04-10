@@ -1,14 +1,15 @@
 import { Worker } from "node:worker_threads";
 
-export default function runInWorker(resolvedPath, uuid) {
+export default function runInWorker(queue) {
+  console.log("something is running here");
   return new Promise((resolve, reject) => {
-    //console.log("working on: ", name);
     const worker = new Worker(
       "./src/utils/thumbnailGeneration/thumb_worker.js",
       {
-        workerData: { resolvedPath, uuid },
+        workerData: { queue: queue },
       },
     );
+
     //worker.on("message", (message) => console.log(message));
     worker.on("error", (err) => reject(err));
     worker.on("exit", (code) => {

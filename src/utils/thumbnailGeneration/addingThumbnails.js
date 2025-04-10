@@ -1,18 +1,11 @@
-import path from "node:path";
 import pLimit from "p-limit";
-import runInWorker from "./runner.js";
+import { queueHandling } from "./thumb_worker.js";
+import { queue } from "./test1.js";
 const workerLimit = pLimit(50);
 
-export function thumbnailFile(file, uuid) {
-  const parsedPath = path.parse(file);
-  if (parsedPath.ext != ".pdf") {
-    console.error(Error(`${file} is not a pdf`));
-    return;
-  }
-
+export function thumbnailFile() {
   try {
-    const resolvedPath = path.resolve(file);
-    workerLimit(() => runInWorker(resolvedPath, uuid)).then(() => {
+    workerLimit(() => queueHandling(queue)).then(() => {
       console.log(workerLimit.activeCount);
     });
   } catch (err) {

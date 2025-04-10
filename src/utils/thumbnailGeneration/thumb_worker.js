@@ -1,4 +1,4 @@
-import { parentPort, workerData } from "worker_threads";
+import { workerData } from "worker_threads";
 import { env } from "node:process";
 import { configDotenv } from "dotenv";
 import fs from "node:fs/promises";
@@ -6,6 +6,12 @@ import { exec } from "child_process";
 import path from "path";
 
 configDotenv();
+export function queueHandling(queue) {
+  for (const file of queue) {
+    savePdfThumbnail(file.filePath, file.uuid);
+    queue.shift();
+  }
+}
 async function savePdfThumbnail(pdfPath, uuid) {
   const filePath = path.join(env.THUMBNAIL_FOLDER, uuid);
 
@@ -39,6 +45,8 @@ async function savePdfThumbnail(pdfPath, uuid) {
   }
 }
 
-savePdfThumbnail(workerData.resolvedPath, workerData.uuid).catch((err) => {
+/*savePdfThumbnail(workerData.resolvedPath, workerData.uuid).catch((err) => {
   parentPort.postMessage(`Error: ${err.message}`);
 });
+*/
+queueHandling(workerData.queue).catch((error) => console.log(error));
