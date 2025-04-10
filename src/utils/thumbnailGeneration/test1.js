@@ -1,9 +1,13 @@
 import runInWorker from "./runner.js";
-export let queue = [];
+export let queue = { number: 1, files: [] };
 export function addToQueue(filePath, uuid) {
-  if (queue.length == 10) {
+  if (queue.files.length == 40) {
     runInWorker(queue);
-    queue = [];
+    console.log("Queue :", queue.number, " just started");
+    queue.number += 1;
+    queue.files = [];
   }
-  queue.push({ filePath: filePath, uuid: uuid });
+  if (filePath != null) {
+    queue.files.push({ filePath: filePath, uuid: uuid });
+  }
 }

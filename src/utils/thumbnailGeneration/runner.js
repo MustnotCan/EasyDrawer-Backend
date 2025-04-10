@@ -1,7 +1,7 @@
 import { Worker } from "node:worker_threads";
 
 export default function runInWorker(queue) {
-  console.log("something is running here");
+  //console.log("something is running here");
   return new Promise((resolve, reject) => {
     const worker = new Worker(
       "./src/utils/thumbnailGeneration/thumb_worker.js",

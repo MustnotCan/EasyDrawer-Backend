@@ -27,10 +27,10 @@ export async function addPdfToDb(filePath) {
       thumbnailPath = process.env.THUMBNAIL_FOLDER + savedBook.id + ".webp";
     }
     fs.access(thumbnailPath).catch(async () => {
-      console.log("path:", thumbnailPath);
+      /*console.log("path:", thumbnailPath);
       console.log("Thumbnail not found");
-      console.log("Generating...");
-      console.log("uuid:", savedBook.id);
+      console.log("Generating...");*/
+      //console.log("uuid:", savedBook.id);
       addToQueue(filePath, savedBook.id);
     });
   } catch (err) {

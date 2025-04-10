@@ -7,10 +7,15 @@ import path from "path";
 
 configDotenv();
 export function queueHandling(queue) {
-  for (const file of queue) {
-    savePdfThumbnail(file.filePath, file.uuid);
-    queue.shift();
+  for (const file of queue.files) {
+    try {
+      savePdfThumbnail(file.filePath, file.uuid);
+      //console.log("still in queue: ",queue.number, queue.files.length, " files");
+    } catch (e) {
+      throw new Error(e);
+    }
   }
+  console.log("Queue: ", queue.number, " just finished");
 }
 async function savePdfThumbnail(pdfPath, uuid) {
   const filePath = path.join(env.THUMBNAIL_FOLDER, uuid);
@@ -49,4 +54,4 @@ async function savePdfThumbnail(pdfPath, uuid) {
   parentPort.postMessage(`Error: ${err.message}`);
 });
 */
-queueHandling(workerData.queue).catch((error) => console.log(error));
+queueHandling(workerData.queue);
