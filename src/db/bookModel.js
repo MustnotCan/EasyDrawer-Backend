@@ -69,6 +69,16 @@ export async function getBookByName(name) {
     return null;
   }
 }
+export async function getAllBooks() {
+  try {
+    const books = await prisma.book.findMany({
+      select: { id: true, path: true },
+    });
+    return books;
+  } catch (e) {
+    console.log(e);
+  }
+}
 export async function getBooksFromDB(
   take,
   pageNumber,
