@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 import { statSync } from "fs";
-import { cp } from "fs/promises";
+import { cp, rename } from "fs/promises";
 import path from "path";
 import { execSync } from "child_process";
 import { configDotenv } from "dotenv";
@@ -39,7 +39,12 @@ export default class copyRun extends EventEmitter {
     if (freeshm != undefined && freeshm > this.totalSize + 500 * 1024 * 1024) {
       //console.log("stated copying", file);
       try {
-        await cp(this.file, path.join("/dev/shm/pdfManApp", this.file));
+        const destPath = path.join(
+          "/dev/shm/pdfManApp",
+          this.file + ".partial",
+        );
+        await cp(this.file, destPath);
+        await rename(destPath, path.join("/dev/shm/pdfManApp", this.file));
       } catch {
         if (this.done == true) {
           console.log("happened while exiting! normal");

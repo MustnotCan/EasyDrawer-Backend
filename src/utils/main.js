@@ -11,8 +11,13 @@ import getExpressApp from "../Controllers/index.js";
 import { getAllBooks } from "../db/bookModel.js";
 import { accessSync, statSync } from "node:fs";
 configDotenv();
+let doneGenerating = false;
+
 process.on("SIGINT", async () => {
-  console.log("\n Manual exit, Must rerun");
+  if (doneGenerating != true) {
+    console.log("\n Manual exit, thumb generations not done");
+  }
+  console.log("\n Manual exit");
   await cleanup();
 });
 process.on("beforeExit", async () => {
@@ -54,6 +59,8 @@ async function run() {
     await loop();
   }
   await loop();
+  doneGenerating = true;
+  console.log("Done generating thumbnails");
 }
 run();
 const app = getExpressApp();

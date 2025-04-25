@@ -29,7 +29,6 @@ export async function addPdfToDb(filePath) {
     try {
       await fs.access(thumbnailPath);
       await fs.rm(filePath);
-      //console.log(`Deleted PDF: ${filePath}`);
     } catch {
       addToQueue(filePath, savedBook.id);
     }

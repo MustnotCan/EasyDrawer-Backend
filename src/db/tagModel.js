@@ -22,15 +22,24 @@ export async function deleteTagById(tagId) {
   }
 }
 export async function addTag(tagName) {
-  const uuid = randomUUID();
   try {
     return await prisma.tag.upsert({
-      create: { name: tagName, id: uuid },
-      update: {},
+      create: { name: tagName, id: randomUUID() },
+      update: { undefined },
       where: { name: tagName },
     });
   } catch (err) {
     console.log("Error while adding tag:\n", err);
+  }
+}
+export async function renameTag(preTagName, newTagName) {
+  try {
+    return await prisma.tag.update({
+      data: { name: newTagName },
+      where: { name: preTagName },
+    });
+  } catch (err) {
+    console.log("Error while renaming tag:\n", err);
   }
 }
 export async function deleteTagByName(tagName) {
@@ -44,9 +53,8 @@ export async function deleteTagByName(tagName) {
 }
 export async function getAllTags() {
   try {
-    return await prisma.tag.findMany();
+    return await prisma.tag.findMany({ orderBy: { name: "asc" } });
   } catch (err) {
     console.log("Error while retriving tag:\n", err);
   }
-  return await prisma.tag.findMany();
 }

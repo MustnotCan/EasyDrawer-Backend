@@ -40,7 +40,7 @@ export async function loop() {
     const files = (
       await readdir("/dev/shm", { withFileTypes: true, recursive: true })
     )
-      .filter((res) => res.isFile())
+      .filter((res) => res.isFile() && res.name.endsWith("pdf"))
       .map((file) => path.join(file.parentPath, file.name));
     await gen(files);
   } else {

@@ -7,10 +7,16 @@ import {
   getDistinctFilteredBooksNumber,
   removeTagsFromBooks,
 } from "../db/bookModel.js";
-import { getAllTags, addTag, deleteTagByName } from "../db/tagModel.js";
+import {
+  getAllTags,
+  addTag,
+  deleteTagByName,
+  renameTag,
+} from "../db/tagModel.js";
 import { configDotenv } from "dotenv";
 import { env } from "node:process";
 import cors from "cors";
+import { filesAndDirs } from "../utils/multiTagger.js";
 //import helmet from "helmet";
 
 configDotenv();
@@ -18,11 +24,7 @@ export default function getExpressApp() {
   const app = express(); //app.use(helmet());
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
   app.use("/pdfs", express.static(env.FOLDER_PATH));
-  app.use(
-    cors({
-      origin: "http://localhost:5173", // Frontend URL
-    }),
-  );
+  app.use(cors({ origin: "*" }));
   app.use(express.json());
   app.get("/tags", async (req, res) => {
     try {
@@ -95,6 +97,18 @@ export default function getExpressApp() {
         .json({ error: "Internal server error", details: error.message });
     }
   });
+  app.patch("/tags", async (req, res) => {
+    const body = req.body.body;
+    try {
+      const response = await renameTag(body.prevTagName, body.newTagName);
+      res.status(201).json(response);
+    } catch (error) {
+      console.log(error);
+      res
+        .status(500)
+        .json({ error: "Internal server error", details: error.message });
+    }
+  });
   app.delete("/tags", async (req, res) => {
     const tag = req.body;
     try {
@@ -156,6 +170,24 @@ export default function getExpressApp() {
     } catch (e) {
       console.log("error while deleting a book by id: ", e);
       res.status(400);
+    }
+  });
+  app.get("/books/:path", (req, res) => {
+    const paramsPath = req.params.path;
+    if (paramsPath) {
+      try {
+        const dirMap = filesAndDirs(paramsPath);
+        const directories = dirMap.get("directories");
+        const pdfs = dirMap.get("pdfs");
+        res.status(200).json({ dirs: [...directories], files: [...pdfs] });
+      } catch (e) {
+        if (e.code == "ENOENT") {
+          console.log("Path do not exist");
+          res.status(401).json({});
+        }
+      }
+    } else {
+      res.status(400).json({ error: "no path specified" });
     }
   });
   return app;

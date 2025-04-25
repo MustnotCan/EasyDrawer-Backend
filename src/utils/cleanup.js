@@ -7,16 +7,26 @@ export async function cleanup() {
   copier.done = true;
   cleanTime.setter(true);
   flag.setter(false);
-  const files = (
-    await readdir("/dev/shm", {
-      recursive: true,
-      withFileTypes: true,
-    })
-  ).sort(
-    (a, b) =>
-      path.join(b.parentPath, b.name).length -
-      path.join(a.parentPath, a.name).length,
-  );
+  let files = [];
+  try {
+    files = (
+      await readdir("/dev/shm/pdfManApp", {
+        recursive: true,
+        withFileTypes: true,
+      })
+    ).sort(
+      (a, b) =>
+        path.join(b.parentPath, b.name).length -
+        path.join(a.parentPath, a.name).length,
+    );
+  } catch (e) {
+    if (e.code == "ENOENT") {
+      console.info(
+        "All thumbs are already generated or some copying error happened",
+      );
+    }
+  }
+
   while (files.length != 0) {
     const file = files[0];
     try {

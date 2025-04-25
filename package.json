@@ -6,6 +6,7 @@
   "scripts": {
     "test": "jest",
     "start": "npx nodemon src/utils/main.js",
+    "cleardb": "node src/db/emptydb.js",
     "db": "npx nodemon src/Controllers/index.js",
     "prepare": "husky"
   },
@@ -44,7 +45,6 @@
     "chokidar": "^4.0.3",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "helmet": "^8.1.0",
-    "p-limit": "^6.2.0"
+    "helmet": "^8.1.0"
   }
 }

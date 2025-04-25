@@ -5,12 +5,12 @@ import { exec } from "child_process";
 import path from "path";
 configDotenv();
 export async function queueHandling(queue) {
-  for (const file of queue.files) {
-    try {
-      await savePdfThumbnail(file.filePath, file.uuid);
-    } catch (e) {
-      throw new Error(e);
-    }
+  try {
+    await Promise.all(
+      queue.map((file) => savePdfThumbnail(file.filePath, file.uuid)),
+    );
+  } catch (e) {
+    console.log(e);
   }
 }
 async function savePdfThumbnail(pdfPath, uuid) {
@@ -32,14 +32,11 @@ async function savePdfThumbnail(pdfPath, uuid) {
               if (!error) {
                 console.log("Thumbnail generation completed.");
               }
-              resolve(stdout); // Resolve when the command finishes
+              resolve(stdout);
             },
           );
         });
-
-        // This will only run after exec finishes successfully
         await fs.rm(pdfPath);
-        //console.log(`Deleted PDF: ${pdfPath}`);
       } catch {
         console.log("Yes error happened and moving !");
       }
