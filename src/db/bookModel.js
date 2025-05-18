@@ -1,8 +1,5 @@
-import { PrismaClient } from "@prisma/client";
 import { addTag } from "./tagModel.js";
-
-const prisma = new PrismaClient();
-
+import prisma from "./prismaInit.js";
 export async function deleteBookByPath(filePath) {
   try {
     return await prisma.book.delete({ where: { path: filePath } });
@@ -20,43 +17,32 @@ export async function getDistinctFilteredBooksNumber(
   tagsToFilterBy,
   searchName,
 ) {
-  const where = {};
-
-  if (tagsToFilterBy.length > 0) {
-    where.AND = [
-      ...(where.AND || []),
-      {
+  const and = [];
+  if (
+    tagsToFilterBy.length > 0 &&
+    !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
+  ) {
+    for (const tag of tagsToFilterBy) {
+      and.push({
         tags: {
-          every: {
-            name: { in: tagsToFilterBy },
+          some: {
+            name: { in: [tag] },
           },
         },
-      },
-      {
-        tags: {
-          some: {},
-        },
-      },
-    ];
+      });
+    }
   }
 
+  if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
+    and.push({ tags: { every: { name: { in: [] } } } });
+  }
   if (searchName.length > 0) {
-    where.AND = [
-      ...(where.AND || []),
-      {
-        title: {
-          mode: "insensitive",
-          contains: searchName,
-        },
-      },
-    ];
+    and.push({ title: { mode: "insensitive", contains: searchName } });
   }
-
   const result = await prisma.book.groupBy({
     by: "title",
-    where,
+    where: { AND: and },
   });
-
   return result.length;
 }
 
@@ -85,82 +71,40 @@ export async function getBooksFromDB(
   tagsToFilterBy,
   searchName,
 ) {
-  try {
-    if (tagsToFilterBy.length != 0) {
-      if (searchName.length != 0) {
-        const result = await prisma.book.findMany({
-          take: take,
-          skip: (pageNumber - 1) * take, //pages start at 1
-          orderBy: { title: "asc" },
-          distinct: "title",
-          include: { tags: true },
-          where: {
-            AND: [
-              {
-                tags: {
-                  every: {
-                    name: { in: tagsToFilterBy },
-                  },
-                },
-              },
-              {
-                tags: {
-                  some: {},
-                },
-              },
-              { title: { mode: "insensitive", contains: searchName } },
-            ],
+  const and = [];
+  if (
+    tagsToFilterBy.length > 0 &&
+    !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
+  ) {
+    for (const tag of tagsToFilterBy) {
+      and.push({
+        tags: {
+          some: {
+            name: { in: [tag] },
           },
-        });
-        return result;
-      } else {
-        const result = await prisma.book.findMany({
-          take: take,
-          skip: (pageNumber - 1) * take, //pages start at 1
-          orderBy: { title: "asc" },
-          distinct: "title",
-          include: { tags: true },
-          where: {
-            AND: [
-              {
-                tags: {
-                  every: {
-                    name: { in: tagsToFilterBy },
-                  },
-                },
-              },
-              {
-                tags: {
-                  some: {},
-                },
-              },
-            ],
-          },
-        });
-        return result;
-      }
-    } else {
-      if (searchName.length != 0) {
-        const result = await prisma.book.findMany({
-          take: take,
-          skip: (pageNumber - 1) * take, //pages start at 1
-          orderBy: { title: "asc" },
-          distinct: "title",
-          include: { tags: true },
-          where: { title: { mode: "insensitive", contains: searchName } },
-        });
-        return result;
-      } else {
-        const result = await prisma.book.findMany({
-          take: take,
-          skip: (pageNumber - 1) * take, //pages start at 1
-          orderBy: { title: "asc" },
-          distinct: "title",
-          include: { tags: true },
-        });
-        return result;
-      }
+        },
+      });
     }
+  }
+
+  if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
+    and.push({ tags: { every: { name: { in: [] } } } });
+  }
+  if (searchName.length > 0) {
+    and.push({ title: { mode: "insensitive", contains: searchName } });
+  }
+  try {
+    const result = await prisma.book.findMany({
+      take: take,
+      skip: (pageNumber - 1) * take, //pages start at 1
+      orderBy: { title: "asc" },
+      distinct: "title",
+      include: { tags: true },
+      where: {
+        AND: and,
+      },
+    });
+    return result;
   } catch (err) {
     console.log("-->Unable to get files from db\n", err);
     return null;
@@ -175,9 +119,22 @@ export async function findBooksByName(bookTitle) {
     console.log("Error fetching books by title:\n", err);
   }
 }
+export async function findBooksByPathAndTitle(title, path) {
+  try {
+    return await prisma.book.findFirst({
+      where: { path: path, title: title },
+      include: { tags: true },
+    });
+  } catch (err) {
+    console.log("Error fetching books by path & title:\n", err);
+  }
+}
 export async function findBooksByPath(path) {
   try {
-    return await prisma.book.findUnique({ where: { path: path } });
+    return await prisma.book.findMany({
+      where: { path: path },
+      include: { tags: true },
+    });
   } catch (err) {
     console.log("Error fetching books by path:\n", err);
   }
@@ -208,20 +165,7 @@ export async function findBooksByTags(tagsList) {
   }
 }
 
-export async function addTagToBook(tagId, bookId) {
-  try {
-    await prisma.book.update({
-      data: { tags: { connect: [{ id: tagId }] } },
-      where: { id: bookId },
-    });
-
-    return true;
-  } catch (err) {
-    console.log("Error while adding tag to a book:\n", err);
-    return false;
-  }
-}
-export async function addTagsToBooks(tags, bookname) {
+export async function changeTagsToBooks(addedTags, removedTags, bookname) {
   try {
     const books = await prisma.book.findMany({
       where: { title: bookname },
@@ -232,46 +176,27 @@ export async function addTagsToBooks(tags, bookname) {
       console.log("No books found with title:", bookname);
       return false;
     }
-
-    return await prisma.$transaction(
+    const modifiedBooks = await prisma.$transaction(
       books.map((book) =>
         prisma.book.update({
           where: { id: book.id },
-          data: { tags: { connect: tags.map((tag) => ({ id: tag })) } },
+          data: {
+            tags: {
+              connect: addedTags.map((tag) => ({ id: tag.id })),
+              disconnect: removedTags.map((tag) => ({ id: tag.id })),
+            },
+          },
           include: { tags: true },
         }),
       ),
     );
+    return modifiedBooks[0];
   } catch (err) {
     console.error("Error while adding tags to books:\n", err);
     return false;
   }
 }
-export async function removeTagsFromBooks(tags, bookname) {
-  try {
-    const books = await prisma.book.findMany({
-      where: { title: bookname },
-      select: { id: true }, // Fetch only book IDs
-    });
 
-    if (books.length === 0) {
-      console.log("No books found with title:", bookname);
-      return false;
-    }
-
-    return await prisma.$transaction(
-      books.map((book) =>
-        prisma.book.update({
-          where: { id: book.id },
-          data: { tags: { disconnect: tags.map((tag) => ({ id: tag })) } },
-        }),
-      ),
-    );
-  } catch (err) {
-    console.error("Error while removing tags to books:\n", err);
-    return false;
-  }
-}
 export async function removeTagFromBook(tagId, bookId) {
   try {
     await prisma.book.update({
@@ -297,7 +222,7 @@ export async function saveBook(uuid, name, path, atime, tags) {
       await addTag(tag);
     }
     return await prisma.book.upsert({
-      where: { path: path },
+      where: { id: uuid },
       update: {},
       create: {
         id: uuid,
@@ -324,5 +249,30 @@ export async function deleteBooksByName(bookname) {
     await prisma.book.deleteMany({ where: { title: bookname } });
   } catch (e) {
     console.log("error happened removing books by name \n", e);
+  }
+}
+export async function groupByPath() {
+  try {
+    const results = await prisma.book.findMany({
+      where: { path: { contains: process.env.FOLDER_PATH } },
+      distinct: "path",
+      select: { path: true },
+    });
+    const pathDepths = results.map((res) => ({
+      ...res,
+      depth: res.path.split("/").length,
+    }));
+
+    const mutatedRes = pathDepths.map((res) => {
+      const { path, depth } = res;
+      const subpaths = pathDepths
+        .filter((ras) => ras.path.startsWith(path) && ras.depth === depth + 1)
+        .map((sub) => sub.path);
+
+      return { path, subpaths };
+    });
+    return mutatedRes;
+  } catch {
+    console.log("error happened while fetching the folders");
   }
 }

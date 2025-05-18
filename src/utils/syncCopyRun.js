@@ -3,8 +3,6 @@ import { statSync } from "fs";
 import { cp, rename } from "fs/promises";
 import path from "path";
 import { execSync } from "child_process";
-import { configDotenv } from "dotenv";
-configDotenv();
 
 export default class copyRun extends EventEmitter {
   constructor() {
@@ -65,6 +63,7 @@ export default class copyRun extends EventEmitter {
     return;
   }
   async startOp(files) {
+    console.log("Pushing ", files.length, " to Ram");
     while (files.length > 0 && this.keepLooping == true) {
       await this.checkRamThenCopy(files[0]);
       if (this.canDelete == true) {

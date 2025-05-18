@@ -1,5 +1,4 @@
-import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import prisma from "./prismaInit.js";
 export async function emptyDB() {
   try {
     await prisma.book.deleteMany();

@@ -1,10 +1,8 @@
 import { readdir } from "node:fs/promises";
-import { configDotenv } from "dotenv";
 import path from "path";
 import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
 import { runQueue } from "./thumbnailGeneration/thumbQueue.js";
-configDotenv();
-
+import { generateThumbnail } from "./pdfsOperation/generateThumbnail.js";
 function flagger() {
   let flag = true;
   function setFlag(newFlag) {
@@ -31,7 +29,8 @@ export const cleanTime = cleaner();
 export async function gen(files) {
   while (files.length != 0 && flag.getter() == true) {
     const file = files.shift();
-    await addPdfToDb(file);
+    const { filePath, thumbnailPath, savedBook } = await addPdfToDb(file);
+    await generateThumbnail({ filePath, thumbnailPath, savedBook });
   }
   await runQueue();
 }

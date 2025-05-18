@@ -1,6 +1,5 @@
-import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
-const prisma = new PrismaClient();
+import prisma from "./prismaInit.js";
 export async function findTagsByName(tagsName) {
   try {
     return await prisma.tag.findMany({
@@ -53,7 +52,34 @@ export async function deleteTagByName(tagName) {
 }
 export async function getAllTags() {
   try {
-    return await prisma.tag.findMany({ orderBy: { name: "asc" } });
+    let favoriteTag = { name: "", id: "" };
+    let unclassifiedTag = { name: "", id: "" };
+    let toAdd = [];
+    let existingTagsName = await prisma.tag.findMany({
+      orderBy: { name: "asc" },
+    });
+    const loweredExistingTags = existingTagsName.map((tag) =>
+      tag.name.toLowerCase(),
+    );
+    if (loweredExistingTags.includes("favorite") == false) {
+      favoriteTag.id = randomUUID();
+      favoriteTag.name = "Favorite";
+      toAdd.push(favoriteTag);
+    }
+    if (loweredExistingTags.includes("unclassified") == false) {
+      unclassifiedTag.id = randomUUID();
+      unclassifiedTag.name = "Unclassified";
+      toAdd.push(unclassifiedTag);
+    }
+    if (toAdd.length != 0) {
+      existingTagsName = existingTagsName.concat(
+        await prisma.tag.createManyAndReturn({
+          data: toAdd,
+        }),
+      );
+    }
+
+    return existingTagsName;
   } catch (err) {
     console.log("Error while retriving tag:\n", err);
   }

@@ -1,7 +1,4 @@
-import { configDotenv } from "dotenv";
 import { env } from "node:process";
-import { removePdfFromDb } from "./pdfsOperation/removePdfFromDb.js";
-import chokidar from "chokidar";
 import { readdir } from "node:fs/promises";
 import copyRun from "./syncCopyRun.js";
 import path from "node:path";
@@ -10,9 +7,9 @@ import { loop } from "./runGen.js";
 import getExpressApp from "../Controllers/index.js";
 import { getAllBooks } from "../db/bookModel.js";
 import { accessSync, statSync } from "node:fs";
+import { configDotenv } from "dotenv";
 configDotenv();
 let doneGenerating = false;
-
 process.on("SIGINT", async () => {
   if (doneGenerating != true) {
     console.log("\n Manual exit, thumb generations not done");
@@ -46,7 +43,7 @@ files.push(
         file.isFile() &&
         path.parse(file.parentPath + "/" + file.name).ext == ".pdf",
     )
-    .map((dir) => path.join(dir.parentPath, dir.name)),
+    .map((file) => path.join(file.parentPath, file.name)),
 );
 copier.startOp(
   files.filter(
@@ -55,30 +52,12 @@ copier.startOp(
 );
 async function run() {
   while (!copier.done) {
-    //console.log("looping");
     await loop();
   }
   await loop();
   doneGenerating = true;
-  console.log("Done generating thumbnails");
+  console.log("Thumbs ready...");
 }
 run();
 const app = getExpressApp();
 app.listen(3000, () => console.log("Server started on http://localhost:3000"));
-
-const watcher = chokidar.watch(env.FOLDER_PATH, {
-  persistent: true,
-  ignoreInitial: true,
-});
-watcher.on("add", async (filePath) => {
-  if (path.parse(filePath).ext != ".pdf") {
-    return;
-  } else {
-    copier.startOp([filePath]);
-    await loop();
-  }
-});
-
-watcher.on("unlink", async (filePath) => {
-  await removePdfFromDb(filePath);
-});

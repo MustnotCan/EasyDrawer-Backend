@@ -1,9 +1,8 @@
 import { env } from "node:process";
-import { configDotenv } from "dotenv";
 import fs from "node:fs/promises";
 import { exec } from "child_process";
 import path from "path";
-configDotenv();
+
 export async function queueHandling(queue) {
   try {
     await Promise.all(
@@ -29,9 +28,6 @@ async function savePdfThumbnail(pdfPath, uuid) {
           exec(
             `pdftoppm -f 1 -l 1 -singlefile -cropbox "${pdfPath}" "${outputBase}" && cwebp -q 100 -resize 250 300 "${generatedPng}" -o "${webpFile}" && rm "${outputBase}.ppm"`,
             (error, stdout) => {
-              if (!error) {
-                console.log("Thumbnail generation completed.");
-              }
               resolve(stdout);
             },
           );

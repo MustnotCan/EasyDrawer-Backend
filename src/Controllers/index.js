@@ -1,11 +1,12 @@
 import express from "express";
 import {
-  addTagsToBooks,
   deleteBooksByName,
   getBooksFromDB,
   deleteBookById,
   getDistinctFilteredBooksNumber,
-  removeTagsFromBooks,
+  groupByPath,
+  findBooksByPath,
+  changeTagsToBooks,
 } from "../db/bookModel.js";
 import {
   getAllTags,
@@ -13,14 +14,12 @@ import {
   deleteTagByName,
   renameTag,
 } from "../db/tagModel.js";
-import { configDotenv } from "dotenv";
 import { env } from "node:process";
 import cors from "cors";
-import { filesAndDirs } from "../utils/multiTagger.js";
 //import helmet from "helmet";
 
-configDotenv();
 export default function getExpressApp() {
+  let fsDirs = null;
   const app = express(); //app.use(helmet());
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
   app.use("/pdfs", express.static(env.FOLDER_PATH));
@@ -33,19 +32,22 @@ export default function getExpressApp() {
       for (const tag of tags) {
         returned.push({ id: tag.id, name: tag.name });
       }
-
       res.status(200).json(returned);
     } catch (error) {
       res(500).json({ error: error });
     }
   });
-  app.post("/books", async (req, res) => {
-    const tagsToFilterBy = req.body.tags || [];
-    const searchName = req.body.searchName || "";
+  app.get("/books", async (req, res) => {
+    console.log(req.query);
+    let tagsToFilterBy = [];
+    let reqTags = req.query.tags;
+    if (reqTags && typeof reqTags == "string") {
+      tagsToFilterBy.push(...reqTags.split(","));
+    }
+    const searchName = req.query.searchName || "";
     try {
       var take = Number.parseInt(req.query.take, 10) || 10;
       var pageNumber = Number.parseInt(req.query.pn, 10) || 1;
-
       if (isNaN(pageNumber) || pageNumber < 1) {
         pageNumber = 1;
       }
@@ -62,7 +64,6 @@ export default function getExpressApp() {
           thumbnail: res.id + ".webp",
           tags: res.tags,
           path: res.path,
-          like: res.like,
           markForLater: res.markForLater,
           lastOpened: res.lastOpened,
         };
@@ -124,23 +125,20 @@ export default function getExpressApp() {
 
   app.patch("/books", async (req, res) => {
     try {
-      const { tags, title: nameBook, action } = req.body;
+      const { tags, title: nameBook } = req.body;
 
-      if (!tags || !nameBook || !action) {
+      if (!tags || !nameBook) {
         return res.status(400).json({ error: "Missing required fields" });
       }
+      const addedTags = tags.filter((tag) => tag.action === "add") || [];
+      const removedTags = tags.filter((tag) => tag.action === "remove") || [];
 
-      let response;
-      if (action === "add") {
-        response = await addTagsToBooks(tags, nameBook);
-      } else if (action === "remove") {
-        response = await removeTagsFromBooks(tags, nameBook);
-      } else {
-        return res
-          .status(400)
-          .json({ error: "Invalid action, use 'add' or 'remove'" });
-      }
-
+      const response = await changeTagsToBooks(
+        addedTags,
+        removedTags,
+        nameBook,
+      );
+      response.thumbnail = response.id + ".webp";
       res.status(200).json(response);
     } catch (error) {
       res
@@ -172,23 +170,40 @@ export default function getExpressApp() {
       res.status(400);
     }
   });
-  app.get("/books/:path", (req, res) => {
-    const paramsPath = req.params.path;
-    if (paramsPath) {
-      try {
-        const dirMap = filesAndDirs(paramsPath);
-        const directories = dirMap.get("directories");
-        const pdfs = dirMap.get("pdfs");
-        res.status(200).json({ dirs: [...directories], files: [...pdfs] });
-      } catch (e) {
-        if (e.code == "ENOENT") {
-          console.log("Path do not exist");
-          res.status(401).json({});
-        }
-      }
+  app.get("/books/multiTagger/:path?", async (req, res) => {
+    fsDirs = await groupByPath();
+    let paramsPath;
+    if (req.params.path) {
+      console.log(req.params.path);
+      paramsPath = env.FOLDER_PATH + req.params.path;
     } else {
-      res.status(400).json({ error: "no path specified" });
+      paramsPath = env.FOLDER_PATH;
+    }
+    try {
+      const directories = fsDirs.filter((dir) => dir.path == paramsPath)[0]
+        .subpaths;
+      console.log(directories);
+      const pdfs = await findBooksByPath(paramsPath);
+      const pdfsWithDetails = pdfs.map((res) => {
+        return {
+          id: res.id,
+          title: res.title,
+          thumbnail: res.id + ".webp",
+          tags: res.tags,
+          path: res.path,
+          lastOpened: res.lastOpened,
+        };
+      });
+      res
+        .status(200)
+        .json({ dirs: [...directories], files: [...pdfsWithDetails] });
+    } catch (e) {
+      if (e.code == "ENOENT") {
+        console.log("Path do not exist");
+        res.status(401).json({});
+      }
     }
   });
+
   return app;
 }
