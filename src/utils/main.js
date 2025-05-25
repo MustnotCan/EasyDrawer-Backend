@@ -10,6 +10,7 @@ import { accessSync, statSync } from "node:fs";
 import { configDotenv } from "dotenv";
 configDotenv();
 let doneGenerating = false;
+
 process.on("SIGINT", async () => {
   if (doneGenerating != true) {
     console.log("\n Manual exit, thumb generations not done");
@@ -21,6 +22,7 @@ process.on("beforeExit", async () => {
   await cleanup();
 });
 export const copier = new copyRun();
+
 const existingBooks = await getAllBooks();
 const existingValidThumbs = existingBooks.filter((book) => {
   try {
@@ -45,10 +47,13 @@ files.push(
     )
     .map((file) => path.join(file.parentPath, file.name)),
 );
+//good here
 copier.startOp(
-  files.filter(
-    (file) => !existingValidThumbs.map((file) => file.path).includes(file),
-  ),
+  files
+    .filter(
+      (file) => !existingValidThumbs.map((file) => file.path).includes(file),
+    )
+    .map((file) => file.replace(process.env.FOLDER_PATH, "")),
 );
 async function run() {
   while (!copier.done) {
@@ -60,4 +65,6 @@ async function run() {
 }
 run();
 const app = getExpressApp();
-app.listen(3000, () => console.log("Server started on http://localhost:3000"));
+app.listen(env.PORT, () =>
+  console.log(`Server started on http://localhost:${env.PORT}`),
+);

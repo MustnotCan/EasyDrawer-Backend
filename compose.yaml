@@ -1,0 +1,51 @@
+services:
+  back-end:
+    container_name: pdfmanbackend
+    image: pdfmanapp/pdfmanbackend:latest
+    shm_size: "4g"
+    environment:
+      DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
+      FOLDER_PATH: /pdfsFolder/pdfs
+      THUMBNAIL_FOLDER: /pdfsFolder/thumbnails
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    depends_on:
+      - db
+      - migrator
+
+    volumes:
+      - /home/saifparrot/pdfManApp/pdfs:/pdfsFolder/pdfs:rw
+      - /home/saifparrot/pdfManApp/thumbnails:/pdfsFolder/thumbnails:rw
+  front-end:
+    container_name: pdfmanfrontend
+    image: pdfmanapp/pdfmanfrontend:latest
+    ports:
+      - "5173:80"
+    environment:
+      - VITE_API_MAIN=http://localhost:3001/
+    depends_on:
+      - back-end
+  db:
+    image: postgres
+    container_name: postgresdb
+    restart: always
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: PDFMAN
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  migrator:
+    image: pdfmanapp/prismamigration:latest
+    environment:
+      - DATABASE_URL=postgresql://myuser:mypassword@db:5432/PDFMAN
+    depends_on:
+      - db
+    restart: no
+
+volumes:
+  pgdata:

@@ -251,28 +251,57 @@ export async function deleteBooksByName(bookname) {
     console.log("error happened removing books by name \n", e);
   }
 }
+
 export async function groupByPath() {
   try {
     const results = await prisma.book.findMany({
-      where: { path: { contains: process.env.FOLDER_PATH } },
       distinct: "path",
       select: { path: true },
     });
-    const pathDepths = results.map((res) => ({
-      ...res,
-      depth: res.path.split("/").length,
+
+    const paths = results.map((res) => res.path);
+
+    // Use a Set to store all unique paths
+    const pathSet = new Set(paths);
+
+    for (const path of paths) {
+      const segments = path.split("/");
+      let currentPath = "";
+
+      for (const segment of segments) {
+        if (segment) {
+          currentPath += `/${segment}`;
+          pathSet.add(currentPath);
+        }
+      }
+    }
+
+    // Convert the set into an array and compute depths
+    const pathDepths = Array.from(pathSet).map((path) => ({
+      path,
+      depth: path === "/" ? 1 : path.split("/").length,
     }));
 
-    const mutatedRes = pathDepths.map((res) => {
-      const { path, depth } = res;
-      const subpaths = pathDepths
-        .filter((ras) => ras.path.startsWith(path) && ras.depth === depth + 1)
-        .map((sub) => sub.path);
+    // Group paths by parent
+    const pathMap = new Map();
 
-      return { path, subpaths };
-    });
-    return mutatedRes;
-  } catch {
-    console.log("error happened while fetching the folders");
+    for (const { path, depth } of pathDepths) {
+      const parentPaths = pathDepths.filter(
+        (p) => p.path.startsWith(path) && p.depth === depth + 1,
+      );
+
+      pathMap.set(
+        path,
+        parentPaths.map((sub) => sub.path.replace(path, "")),
+      );
+    }
+
+    // Return the final structure
+    return Array.from(pathMap.entries()).map(([path, subpaths]) => ({
+      path,
+      subpaths,
+    }));
+  } catch (error) {
+    console.error("Error occurred while fetching the folders:", error);
   }
 }

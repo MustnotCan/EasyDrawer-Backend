@@ -1,209 +1,33 @@
 import express from "express";
-import {
-  deleteBooksByName,
-  getBooksFromDB,
-  deleteBookById,
-  getDistinctFilteredBooksNumber,
-  groupByPath,
-  findBooksByPath,
-  changeTagsToBooks,
-} from "../db/bookModel.js";
-import {
-  getAllTags,
-  addTag,
-  deleteTagByName,
-  renameTag,
-} from "../db/tagModel.js";
 import { env } from "node:process";
 import cors from "cors";
 //import helmet from "helmet";
+import { deleteTags, getTags, patchTags, postTags } from "./tagsHandlers.js";
+import {
+  deleteBooks,
+  deleteBooksBulkDelete,
+  getBooks,
+  getBooksMultiTagger,
+  patchBooks,
+} from "./booksHandlers.js";
 
 export default function getExpressApp() {
-  let fsDirs = null;
-  const app = express(); //app.use(helmet());
+  const app = express();
+  app.use(cors({ origin: "*" }));
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
   app.use("/pdfs", express.static(env.FOLDER_PATH));
-  app.use(cors({ origin: "*" }));
   app.use(express.json());
-  app.get("/tags", async (req, res) => {
-    try {
-      const tags = await getAllTags();
-      const returned = [];
-      for (const tag of tags) {
-        returned.push({ id: tag.id, name: tag.name });
-      }
-      res.status(200).json(returned);
-    } catch (error) {
-      res(500).json({ error: error });
-    }
-  });
-  app.get("/books", async (req, res) => {
-    console.log(req.query);
-    let tagsToFilterBy = [];
-    let reqTags = req.query.tags;
-    if (reqTags && typeof reqTags == "string") {
-      tagsToFilterBy.push(...reqTags.split(","));
-    }
-    const searchName = req.query.searchName || "";
-    try {
-      var take = Number.parseInt(req.query.take, 10) || 10;
-      var pageNumber = Number.parseInt(req.query.pn, 10) || 1;
-      if (isNaN(pageNumber) || pageNumber < 1) {
-        pageNumber = 1;
-      }
-      var result = await getBooksFromDB(
-        take,
-        pageNumber,
-        tagsToFilterBy,
-        searchName,
-      );
-      const data = result.map((res) => {
-        return {
-          id: res.id,
-          title: res.title,
-          thumbnail: res.id + ".webp",
-          tags: res.tags,
-          path: res.path,
-          markForLater: res.markForLater,
-          lastOpened: res.lastOpened,
-        };
-      });
-      const countBooksInDb = await getDistinctFilteredBooksNumber(
-        tagsToFilterBy,
-        searchName,
-      );
-      const count = Math.ceil(countBooksInDb / take);
-      const toSend = {
-        data: data,
-        count: count || 0,
-        take: take,
-        pn: pageNumber,
-      };
 
-      res.status(200).json(toSend);
-    } catch (error) {
-      console.error("Error fetching files:", error);
-      res.status(500).send("Internal Server Error");
-    }
-  });
-  app.post("/tags", async (req, res) => {
-    const tag = req.body;
-    try {
-      const response = await addTag(tag.name);
-      res.status(201).json(response);
-    } catch (error) {
-      console.log(error);
-      res
-        .status(500)
-        .json({ error: "Internal server error", details: error.message });
-    }
-  });
-  app.patch("/tags", async (req, res) => {
-    const body = req.body.body;
-    try {
-      const response = await renameTag(body.prevTagName, body.newTagName);
-      res.status(201).json(response);
-    } catch (error) {
-      console.log(error);
-      res
-        .status(500)
-        .json({ error: "Internal server error", details: error.message });
-    }
-  });
-  app.delete("/tags", async (req, res) => {
-    const tag = req.body;
-    try {
-      const response = await deleteTagByName(tag.name);
-      res.status(200).json(response);
-    } catch (error) {
-      console.log(error);
-      res
-        .status(500)
-        .json({ error: "Internal server error", details: error.message });
-    }
-  });
+  app.get("/tags", getTags);
+  app.post("/tags", postTags);
+  app.patch("/tags", patchTags);
+  app.delete("/tags", deleteTags);
 
-  app.patch("/books", async (req, res) => {
-    try {
-      const { tags, title: nameBook } = req.body;
-
-      if (!tags || !nameBook) {
-        return res.status(400).json({ error: "Missing required fields" });
-      }
-      const addedTags = tags.filter((tag) => tag.action === "add") || [];
-      const removedTags = tags.filter((tag) => tag.action === "remove") || [];
-
-      const response = await changeTagsToBooks(
-        addedTags,
-        removedTags,
-        nameBook,
-      );
-      response.thumbnail = response.id + ".webp";
-      res.status(200).json(response);
-    } catch (error) {
-      res
-        .status(500)
-        .json({ error: "Internal server error", details: error.message });
-    }
-  });
-  app.delete("/books/bulkdelete", async (req, res) => {
-    const title = req.body.title;
-    if (!title) {
-      return res.status(400).json({ error: "no title in the body request" });
-    }
-    try {
-      const response = await deleteBooksByName(title);
-      res.status(201).json(response);
-    } catch (e) {
-      console.log("error while deleting a book by id: ", e);
-      res.status(400).json({ error: "Error when deleting books by name" });
-    }
-  });
-  app.delete("/books/:id", async (req, res) => {
-    const id = req.params.id;
-
-    try {
-      const response = await deleteBookById(id);
-      res.status(201).json(response);
-    } catch (e) {
-      console.log("error while deleting a book by id: ", e);
-      res.status(400);
-    }
-  });
-  app.get("/books/multiTagger/:path?", async (req, res) => {
-    fsDirs = await groupByPath();
-    let paramsPath;
-    if (req.params.path) {
-      console.log(req.params.path);
-      paramsPath = env.FOLDER_PATH + req.params.path;
-    } else {
-      paramsPath = env.FOLDER_PATH;
-    }
-    try {
-      const directories = fsDirs.filter((dir) => dir.path == paramsPath)[0]
-        .subpaths;
-      console.log(directories);
-      const pdfs = await findBooksByPath(paramsPath);
-      const pdfsWithDetails = pdfs.map((res) => {
-        return {
-          id: res.id,
-          title: res.title,
-          thumbnail: res.id + ".webp",
-          tags: res.tags,
-          path: res.path,
-          lastOpened: res.lastOpened,
-        };
-      });
-      res
-        .status(200)
-        .json({ dirs: [...directories], files: [...pdfsWithDetails] });
-    } catch (e) {
-      if (e.code == "ENOENT") {
-        console.log("Path do not exist");
-        res.status(401).json({});
-      }
-    }
-  });
+  app.get("/books", getBooks);
+  app.patch("/books", patchBooks);
+  app.delete("/books/bulkdelete", deleteBooksBulkDelete);
+  app.delete("/books/:id", deleteBooks);
+  app.get("/books/multiTagger/:path?", getBooksMultiTagger);
 
   return app;
 }

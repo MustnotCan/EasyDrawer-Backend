@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "test": "jest",
-    "start": "npx nodemon src/utils/main.js",
+    "start": "node src/utils/main.js",
     "cleardb": "node src/db/emptydb.js",
-    "db": "npx nodemon src/Controllers/index.js"
+    "db": "npx nodemon src/Controllers/index.js",
+    "dev": "nodemon src/utils/main.js"
   },
   "keywords": [],
   "author": "",
@@ -15,7 +16,6 @@
   "description": "",
   "devDependencies": {
     "@eslint/js": "^9.21.0",
-    "dotenv": "^16.4.7",
     "eslint": "^9.21.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.3",
@@ -36,6 +36,7 @@
     "@prisma/client": "^6.4.1",
     "cors": "^2.8.5",
     "express": "^4.21.2",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "dotenv": "^16.4.7"
   }
 }

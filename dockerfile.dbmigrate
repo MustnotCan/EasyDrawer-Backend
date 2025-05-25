@@ -1,0 +1,15 @@
+FROM node:18-slim
+
+WORKDIR /app
+RUN apt update && apt-get install -y openssl && \
+    apt clean && rm -rf /var/lib/apt/lists/*
+RUN npm install prisma
+
+COPY prisma ./prisma
+COPY dbmigrate.entrypoint.sh ./entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+# REQUIRED ENV: fix when running image
+# - DATABASE_URL: Postgres connection string for Prisma
+RUN npx prisma generate
+
+ENTRYPOINT ["./entrypoint.sh"]

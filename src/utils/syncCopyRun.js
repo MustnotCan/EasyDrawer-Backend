@@ -29,7 +29,7 @@ export default class copyRun extends EventEmitter {
   }
 
   async checkRamThenCopy(file) {
-    this.file = file;
+    this.file = process.env.FOLDER_PATH + file;
     if (this.totalSize == undefined) {
       this.totalSize = statSync(this.file).size;
     }
@@ -37,12 +37,9 @@ export default class copyRun extends EventEmitter {
     if (freeshm != undefined && freeshm > this.totalSize + 500 * 1024 * 1024) {
       //console.log("stated copying", file);
       try {
-        const destPath = path.join(
-          "/dev/shm/pdfManApp",
-          this.file + ".partial",
-        );
+        const destPath = path.join("/dev/shm/pdfManApp", file + ".partial");
         await cp(this.file, destPath);
-        await rename(destPath, path.join("/dev/shm/pdfManApp", this.file));
+        await rename(destPath, path.join("/dev/shm/pdfManApp", file));
       } catch {
         if (this.done == true) {
           console.log("happened while exiting! normal");

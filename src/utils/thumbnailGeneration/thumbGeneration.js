@@ -33,6 +33,7 @@ async function savePdfThumbnail(pdfPath, uuid) {
           );
         });
         await fs.rm(pdfPath);
+        console.log("thumbnail generated and saved in : ", webpFile);
       } catch {
         console.log("Yes error happened and moving !");
       }

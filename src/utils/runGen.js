@@ -36,12 +36,21 @@ export async function gen(files) {
 }
 export async function loop() {
   if (flag.getter()) {
-    const files = (
-      await readdir("/dev/shm", { withFileTypes: true, recursive: true })
-    )
-      .filter((res) => res.isFile() && res.name.endsWith("pdf"))
-      .map((file) => path.join(file.parentPath, file.name));
-    await gen(files);
+    try {
+      const files = (
+        await readdir("/dev/shm/pdfManApp", {
+          withFileTypes: true,
+          recursive: true,
+        })
+      )
+        .filter((res) => res.isFile() && res.name.endsWith("pdf"))
+        .map((file) => {
+          return path.join(file.parentPath, file.name);
+        });
+      await gen(files);
+    } catch {
+      // just the pdfManAPp not existing yet
+    }
   } else {
     return;
   }

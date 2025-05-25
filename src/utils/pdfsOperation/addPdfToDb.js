@@ -3,12 +3,15 @@ import { saveBook, findBooksByPathAndTitle } from "../../db/bookModel.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 export async function addPdfToDb(filePath) {
-  const relativePath = filePath.slice(
+  const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+
+  let relativePath = filePath.slice(
     "/dev/shm/pdfManApp".length,
-    filePath.lastIndexOf("/"),
+    filePath.length - name.length - 1,
   );
-  const parsedFilePath = path.parse(filePath);
-  const name = parsedFilePath.base;
+  if (relativePath.length == 0) {
+    relativePath = "/";
+  }
   let thumbnailPath;
   try {
     const lastRead = (await fs.stat(filePath)).atime;
