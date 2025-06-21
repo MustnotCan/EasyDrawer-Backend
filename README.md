@@ -73,10 +73,6 @@ Issues and feature requests are welcome.
 
 ---
 
-## Screenshots
-
----
-
 ## Docker
 
 ### Docker Compose
@@ -91,7 +87,7 @@ services:
   back-end:
     container_name: pdfmanbackend
     image: pdfmanapp/pdfmanbackend:latest
-    shm_size: "4g" #change this to how much of ram you want to give to generate the thumbnails
+    shm_size: "4g"
     environment:
       DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
       FOLDER_PATH: /pdfsFolder/pdfs
@@ -102,10 +98,10 @@ services:
     depends_on:
       - db
       - migrator
-    volumes:
-      - /path/to/your/pdfs/folder:/pdfsFolder/pdfs:rw
-      - /path/to/your/thumbnails/folder:/pdfsFolder/thumbnails:rw
 
+    volumes:
+      - /home/saifparrot/pdfManApp/pdfs:/pdfsFolder/pdfs:rw
+      - thumbnails:/pdfsFolder/thumbnails
   front-end:
     container_name: pdfmanfrontend
     image: pdfmanapp/pdfmanfrontend:latest
@@ -115,7 +111,6 @@ services:
       - API=http://localhost:3001/
     depends_on:
       - back-end
-
   db:
     image: postgres
     container_name: postgresdb
@@ -139,6 +134,7 @@ services:
 
 volumes:
   pgdata:
+  thumbnails:
 ```
 
 ## Local developement setup :

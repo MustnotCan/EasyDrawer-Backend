@@ -22,11 +22,10 @@ process.on("beforeExit", async () => {
   await cleanup();
 });
 export const copier = new copyRun();
-
 const existingBooks = await getAllBooks();
 const existingValidThumbs = existingBooks.filter((book) => {
   try {
-    const filePath = path.join(process.env.THUMBNAIL_FOLDER, book.id + ".webp");
+    const filePath = path.join(env.THUMBNAIL_FOLDER, book.id + ".webp");
     accessSync(filePath);
     return statSync(filePath).size != 0;
   } catch {
@@ -40,31 +39,34 @@ const res = await readdir(env.FOLDER_PATH, {
 const files = [];
 files.push(
   ...res
-    .filter(
-      (file) =>
-        file.isFile() &&
-        path.parse(file.parentPath + "/" + file.name).ext == ".pdf",
-    )
+    .filter((file) => file.isFile() && path.parse(file.name).ext == ".pdf")
     .map((file) => path.join(file.parentPath, file.name)),
 );
-//good here
-copier.startOp(
-  files
-    .filter(
-      (file) => !existingValidThumbs.map((file) => file.path).includes(file),
-    )
-    .map((file) => file.replace(process.env.FOLDER_PATH, "")),
-);
-async function run() {
-  while (!copier.done) {
+export async function run(copy) {
+  while (!copy.done) {
     await loop();
   }
   await loop();
   doneGenerating = true;
   console.log("Thumbs ready...");
 }
-run();
+//good here
 const app = getExpressApp();
-app.listen(env.PORT, () =>
-  console.log(`Server started on http://localhost:${env.PORT}`),
-);
+app.listen(env.PORT, () => {
+  console.log(`Server started on http://localhost:${env.PORT}`);
+  const copierFiles = files
+    .filter(
+      (file) =>
+        !existingValidThumbs
+          .map((file) => path.join(env.FOLDER_PATH, file.path, file.title))
+          .includes(file),
+    )
+    .map((file) => file.replace(process.env.FOLDER_PATH, ""));
+
+  const nbrofFiles = copierFiles.length;
+  copier.startOp(copierFiles);
+  if (nbrofFiles > 0) {
+    console.log("Generating thumbnails for : ", nbrofFiles);
+    run(copier);
+  }
+});

@@ -16,7 +16,7 @@ services:
 
     volumes:
       - /home/saifparrot/pdfManApp/pdfs:/pdfsFolder/pdfs:rw
-      - /home/saifparrot/pdfManApp/thumbnails:/pdfsFolder/thumbnails:rw
+      - thumbnails:/pdfsFolder/thumbnails
   front-end:
     container_name: pdfmanfrontend
     image: pdfmanapp/pdfmanfrontend:latest
@@ -49,3 +49,4 @@ services:
 
 volumes:
   pgdata:
+  thumbnails:

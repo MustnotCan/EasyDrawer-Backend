@@ -7,9 +7,15 @@ import {
   deleteBooks,
   deleteBooksBulkDelete,
   getBooks,
-  getBooksMultiTagger,
+  getFilesMultiTagger,
   patchBooks,
+  changeBooksTagsMultiTagger,
+  getBooksMultiTagger,
+  importFiles,
 } from "./booksHandlers.js";
+import multer from "multer";
+const storage = multer.memoryStorage();
+const mult = multer({ storage: storage });
 
 export default function getExpressApp() {
   const app = express();
@@ -17,7 +23,6 @@ export default function getExpressApp() {
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
   app.use("/pdfs", express.static(env.FOLDER_PATH));
   app.use(express.json());
-
   app.get("/tags", getTags);
   app.post("/tags", postTags);
   app.patch("/tags", patchTags);
@@ -25,9 +30,12 @@ export default function getExpressApp() {
 
   app.get("/books", getBooks);
   app.patch("/books", patchBooks);
-  app.delete("/books/bulkdelete", deleteBooksBulkDelete);
   app.delete("/books/:id", deleteBooks);
-  app.get("/books/multiTagger/:path?", getBooksMultiTagger);
+  app.get("/books/multiTagger/:path?", getFilesMultiTagger);
+  app.post("/books/multiTagger/tags", getBooksMultiTagger);
+  app.patch("/books/multiTagger/updatetags", changeBooksTagsMultiTagger);
+  app.delete("/books/multiTagger", deleteBooksBulkDelete);
+  app.post("/books/multiTagger/importfile", mult.array("files"), importFiles);
 
   return app;
 }

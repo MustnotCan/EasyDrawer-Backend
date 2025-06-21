@@ -1,5 +1,6 @@
 import { addTag } from "./tagModel.js";
 import prisma from "./prismaInit.js";
+import { join } from "path";
 export async function deleteBookByPath(filePath) {
   try {
     return await prisma.book.delete({ where: { path: filePath } });
@@ -58,7 +59,7 @@ export async function getBookByName(name) {
 export async function getAllBooks() {
   try {
     const books = await prisma.book.findMany({
-      select: { id: true, path: true },
+      select: { id: true, path: true, title: true },
     });
     return books;
   } catch (e) {
@@ -186,7 +187,7 @@ export async function changeTagsToBooks(addedTags, removedTags, bookname) {
               disconnect: removedTags.map((tag) => ({ id: tag.id })),
             },
           },
-          include: { tags: true },
+          select: { title: true, tags: true },
         }),
       ),
     );
@@ -196,7 +197,21 @@ export async function changeTagsToBooks(addedTags, removedTags, bookname) {
     return false;
   }
 }
-
+export async function changeTagsToMultipleBooks(
+  addedTags,
+  removedTags,
+  booksNames,
+) {
+  return await Promise.all(
+    booksNames.map((bookName) =>
+      changeTagsToBooks(
+        addedTags,
+        removedTags,
+        bookName.slice(bookName.lastIndexOf("/") + 1),
+      ),
+    ),
+  );
+}
 export async function removeTagFromBook(tagId, bookId) {
   try {
     await prisma.book.update({
@@ -251,6 +266,15 @@ export async function deleteBooksByName(bookname) {
     console.log("error happened removing books by name \n", e);
   }
 }
+export async function deleteBooksByPathandName(relativePath, name) {
+  try {
+    await prisma.book.deleteMany({
+      where: { path: relativePath, title: name },
+    });
+  } catch (e) {
+    console.log("error happened removing books by name \n", e);
+  }
+}
 
 export async function groupByPath() {
   try {
@@ -258,16 +282,12 @@ export async function groupByPath() {
       distinct: "path",
       select: { path: true },
     });
-
     const paths = results.map((res) => res.path);
-
-    // Use a Set to store all unique paths
     const pathSet = new Set(paths);
-
+    pathSet.add("/");
     for (const path of paths) {
       const segments = path.split("/");
       let currentPath = "";
-
       for (const segment of segments) {
         if (segment) {
           currentPath += `/${segment}`;
@@ -275,14 +295,10 @@ export async function groupByPath() {
         }
       }
     }
-
-    // Convert the set into an array and compute depths
     const pathDepths = Array.from(pathSet).map((path) => ({
       path,
       depth: path === "/" ? 1 : path.split("/").length,
     }));
-
-    // Group paths by parent
     const pathMap = new Map();
 
     for (const { path, depth } of pathDepths) {
@@ -295,13 +311,129 @@ export async function groupByPath() {
         parentPaths.map((sub) => sub.path.replace(path, "")),
       );
     }
-
-    // Return the final structure
     return Array.from(pathMap.entries()).map(([path, subpaths]) => ({
       path,
       subpaths,
     }));
   } catch (error) {
     console.error("Error occurred while fetching the folders:", error);
+  }
+}
+export async function getFilesFromSelectedAndUnselected(
+  selectedFolders,
+  unselectedFolders,
+  selectedFiles,
+  unselectedFiles,
+  withTags,
+) {
+  try {
+    //get all files calculate lsp-lup and select the files if >0
+    const selectedFilesPromises = selectedFolders.map((folder) => {
+      return prisma.book.findMany({
+        where: { path: { contains: folder } },
+        select: { path: true, title: true, tags: withTags },
+      });
+    });
+    const unselectedFilesPromises = unselectedFiles.map((folder) => {
+      return prisma.book.findMany({
+        where: { path: { contains: folder } },
+        select: { path: true, title: true, tags: withTags },
+      });
+    });
+    const foundSelectedFiles = (
+      await Promise.all(selectedFilesPromises)
+    ).flatMap((array) => {
+      return array.map((element) => {
+        return {
+          fullpath: join(element.path, element.title),
+          tags: element.tags,
+        };
+      });
+    });
+    const foundUnSelectedFiles = (
+      await Promise.all(unselectedFilesPromises)
+    ).flatMap((array) => {
+      return array.map((element) => {
+        return {
+          fullpath: join(element.path, element.title),
+          tags: element.tags,
+        };
+      });
+    });
+    const selectedFilesDetailsPromises = selectedFiles.map((file) => {
+      const title = file.slice(file.lastIndexOf("/") + 1);
+      const path = file.slice(0, file.lastIndexOf("/")) || "/";
+      return findBooksByPathAndTitle(title, path);
+    });
+    const selectedFilesDetails = await Promise.all(
+      selectedFilesDetailsPromises,
+    );
+    selectedFilesDetails.forEach((element) => {
+      foundSelectedFiles.push(
+        withTags
+          ? {
+              fullpath: join(element.path, element.title),
+              tags: element.tags,
+            }
+          : {
+              fullpath: join(element.path, element.title),
+            },
+      );
+    });
+    const unSelectedFilesDetailsPromises = unselectedFiles.map((file) => {
+      const title = file.slice(file.lastIndexOf("/") + 1);
+      const path = file.slice(0, file.lastIndexOf("/")) || "/";
+      return findBooksByPathAndTitle(title, path);
+    });
+    const unSelectedFilesDetails = await Promise.all(
+      unSelectedFilesDetailsPromises,
+    );
+    unSelectedFilesDetails.forEach((element) => {
+      foundUnSelectedFiles.push(
+        withTags
+          ? {
+              fullpath: join(element.path, element.title),
+              tags: element.tags,
+            }
+          : {
+              fullpath: join(element.path, element.title),
+            },
+      );
+    });
+    const filteredFiles = foundSelectedFiles.filter((element) => {
+      const possibleParents = element.fullpath
+        .split("/")
+        .map((v, i, a) => {
+          if (i == 0) {
+            return "/";
+          } else {
+            return [...a.slice(0, i), v].join("/");
+          }
+        })
+        .filter((path) => !path.endsWith(".pdf"));
+      if (selectedFiles.includes(element.fullpath)) {
+        return true;
+      } else if (unselectedFiles.includes(element.fullpath)) {
+        return false;
+      } else {
+        const lsp = selectedFolders
+          .filter((folder) => possibleParents.includes(folder))
+          .sort();
+        const lup = unselectedFolders
+          .filter((folder) => possibleParents.includes(folder))
+          .sort();
+        const lsplength = lsp.length > 0 ? lsp.at(0).length : 0;
+        const luplength = lup.length > 0 ? lup.at(0).length : 0;
+
+        if (lsplength - luplength > 0) {
+          return true;
+        } else {
+          return false;
+        }
+      }
+    });
+    return filteredFiles;
+  } catch (e) {
+    console.log("Error happened when trying to select files", e);
   }
 }
