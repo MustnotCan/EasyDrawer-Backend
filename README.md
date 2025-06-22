@@ -87,7 +87,7 @@ services:
   back-end:
     container_name: pdfmanbackend
     image: pdfmanapp/pdfmanbackend:latest
-    shm_size: "4g" //Change to how much of ram you want to give for thumbs generation min 500mb
+    shm_size: "4g" #Change to how much of ram you want to give for thumbs generation min 500mb
     environment:
       DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
       FOLDER_PATH: /pdfs/
