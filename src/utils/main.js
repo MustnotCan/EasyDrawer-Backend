@@ -66,8 +66,9 @@ app.listen(env.PORT, async () => {
   const nbrofFiles = copierFiles.length;
   copier.startOp(copierFiles);
   if (nbrofFiles > 0) {
-    console.time(`Generating thumbnails for :${nbrofFiles}`);
-    await run(copier);
-    console.timeEnd(`Generating thumbnails for :${nbrofFiles}`);
+    console.time(`Generating thumbnails for ${nbrofFiles} files`);
+    run(copier).then(() => {
+      console.timeEnd(`Generating thumbnails for ${nbrofFiles} files`);
+    });
   }
 });

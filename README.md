@@ -24,7 +24,7 @@ This repository is the main hub for announcements and updates about the **PDF Ma
   Search PDFs by name and filter by tags (additional search features coming soon).
 
 - **Folder & File Management**
-  Add, delete, and rename folders and files directly from the app interface.
+  Add, delete, tag directly from the app interface.
 
 - **Bulk Tagging & Editing**
   Apply tags and edits to multiple files at once.
@@ -87,11 +87,11 @@ services:
   back-end:
     container_name: pdfmanbackend
     image: pdfmanapp/pdfmanbackend:latest
-    shm_size: "4g"
+    shm_size: "4g" //Change to how much of ram you want to give for thumbs generation min 500mb
     environment:
       DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
-      FOLDER_PATH: /pdfsFolder/pdfs
-      THUMBNAIL_FOLDER: /pdfsFolder/thumbnails
+      FOLDER_PATH: /pdfs/
+      THUMBNAIL_FOLDER: /thumbnails/
       PORT: 3001
     ports:
       - "3001:3001"
@@ -100,15 +100,17 @@ services:
       - migrator
 
     volumes:
-      - /home/saifparrot/pdfManApp/pdfs:/pdfsFolder/pdfs:rw
-      - thumbnails:/pdfsFolder/thumbnails
+      - /path/to/pdfs/folder:/pdfs:rw
+      - thumbnails:/thumbnails:rw
+    restart:
+      - always
   front-end:
     container_name: pdfmanfrontend
     image: pdfmanapp/pdfmanfrontend:latest
     ports:
       - "5173:80"
     environment:
-      - API=http://localhost:3001/
+      - API=http://localhost:3001/ #if this is hosted on another device, you should put here its ip adress
     depends_on:
       - back-end
   db:
