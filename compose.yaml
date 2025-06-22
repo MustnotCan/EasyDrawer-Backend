@@ -5,8 +5,8 @@ services:
     shm_size: "4g"
     environment:
       DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
-      FOLDER_PATH: /pdfsFolder/pdfs
-      THUMBNAIL_FOLDER: /pdfsFolder/thumbnails
+      FOLDER_PATH: /pdfs/
+      THUMBNAIL_FOLDER: /thumbnails/
       PORT: 3001
     ports:
       - "3001:3001"
@@ -15,15 +15,17 @@ services:
       - migrator
 
     volumes:
-      - /home/saifparrot/pdfManApp/pdfs:/pdfsFolder/pdfs:rw
-      - thumbnails:/pdfsFolder/thumbnails
+      - /path/to/pdfs/folder:/pdfs:rw
+      - thumbnails:/thumbnails:rw
+    restart:
+      - always
   front-end:
     container_name: pdfmanfrontend
     image: pdfmanapp/pdfmanfrontend:latest
     ports:
       - "5173:80"
     environment:
-      - API=http://localhost:3001/
+      - API=http://localhost:3001/ #if this is hosted on another device, you should put here its ip adress
     depends_on:
       - back-end
   db:

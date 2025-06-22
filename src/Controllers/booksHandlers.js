@@ -269,12 +269,16 @@ export async function importFiles(req, res) {
   copier.startOp(qq);
   if (flag.getter() == false) flag.setter(true);
   await run(copier);
-  console.log("thums there");
+
   const addedBooksPromises = queue.map((q) => {
-    return findBooksByPathAndTitle(
-      q.slice(q.lastIndexOf("/") + 1),
-      "/" + q.slice(0, q.lastIndexOf("/")),
-    );
+    if (q.lastIndexOf("/") != -1) {
+      return findBooksByPathAndTitle(
+        q.slice(q.lastIndexOf("/") + 1),
+        "/" + q.slice(0, q.lastIndexOf("/")),
+      );
+    } else {
+      return findBooksByPathAndTitle(q, "/");
+    }
   });
   fsDirs = await groupByPath();
   const addedBooks = (await Promise.all(addedBooksPromises)).map((file) => ({

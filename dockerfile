@@ -39,8 +39,8 @@ COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
 # Set up directories
-RUN mkdir -p /pdfsFolder/pdfs /pdfsFolder/thumbnails && \
-    chown -R node /pdfsFolder
+RUN mkdir -p /pdfs /thumbnails && \
+    chown -R node /pdfs /thumbnails
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh

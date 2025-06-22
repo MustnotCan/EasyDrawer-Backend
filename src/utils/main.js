@@ -52,7 +52,7 @@ export async function run(copy) {
 }
 //good here
 const app = getExpressApp();
-app.listen(env.PORT, () => {
+app.listen(env.PORT, async () => {
   console.log(`Server started on http://localhost:${env.PORT}`);
   const copierFiles = files
     .filter(
@@ -66,7 +66,8 @@ app.listen(env.PORT, () => {
   const nbrofFiles = copierFiles.length;
   copier.startOp(copierFiles);
   if (nbrofFiles > 0) {
-    console.log("Generating thumbnails for : ", nbrofFiles);
-    run(copier);
+    console.time(`Generating thumbnails for :${nbrofFiles}`);
+    await run(copier);
+    console.timeEnd(`Generating thumbnails for :${nbrofFiles}`);
   }
 });
