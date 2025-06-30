@@ -54,21 +54,37 @@ export async function run(copy) {
 const app = getExpressApp();
 app.listen(env.PORT, async () => {
   console.log(`Server started on http://localhost:${env.PORT}`);
-  const copierFiles = files
-    .filter(
-      (file) =>
-        !existingValidThumbs
-          .map((file) => path.join(env.FOLDER_PATH, file.path, file.title))
-          .includes(file),
-    )
-    .map((file) => file.replace(process.env.FOLDER_PATH, ""));
+  const validPaths = new Set(
+    existingValidThumbs.map((file) =>
+      path.join(env.FOLDER_PATH, file.path, file.title),
+    ),
+  );
 
-  const nbrofFiles = copierFiles.length;
-  copier.startOp(copierFiles);
+  const copierFiles = await Promise.all(
+    files.map(
+      (file) =>
+        new Promise((resolve) => {
+          setImmediate(() => {
+            if (!validPaths.has(file)) {
+              resolve(file.replace(process.env.FOLDER_PATH, ""));
+            } else {
+              resolve(null);
+            }
+          });
+        }),
+    ),
+  );
+
+  const filteredCopierFiles = copierFiles.filter((file) => file !== null);
+
+  const nbrofFiles = filteredCopierFiles.length;
+  copier.startOp(filteredCopierFiles);
   if (nbrofFiles > 0) {
     console.time(`Generating thumbnails for ${nbrofFiles} files`);
     run(copier).then(() => {
       console.timeEnd(`Generating thumbnails for ${nbrofFiles} files`);
     });
+  } else {
+    console.log("no new files found at startup");
   }
 });

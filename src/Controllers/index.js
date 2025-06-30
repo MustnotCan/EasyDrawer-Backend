@@ -19,6 +19,7 @@ const mult = multer({ storage: storage });
 
 export default function getExpressApp() {
   const app = express();
+  app.use(express.json({ limit: "1mb" }));
   app.use(cors({ origin: "*" }));
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
   app.use("/pdfs", express.static(env.FOLDER_PATH));
