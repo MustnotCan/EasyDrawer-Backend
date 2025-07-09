@@ -1,4 +1,4 @@
-import { writeFile, mkdir, readdir, rm } from "node:fs/promises";
+import { writeFile, mkdir, readdir, rm, copyFile } from "node:fs/promises";
 import {
   deleteBookById,
   getBooksFromDB,
@@ -10,13 +10,14 @@ import {
   changeTagsToMultipleBooks,
   deleteBooksByPathandName,
   findBooksByPathAndTitle,
+  updateBooksPaths,
 } from "../db/bookModel.js";
 let fsDirs = null;
 import { env } from "node:process";
 import { run } from "../utils/main.js";
 import { flag } from "../utils/runGen.js";
 import copyRun from "../utils/syncCopyRun.js";
-
+import { join } from "node:path";
 export async function getBooks(req, res) {
   let tagsToFilterBy = [];
   let reqTags = req.query.tags;
@@ -84,9 +85,7 @@ export async function patchBooks(req, res) {
   }
 }
 export async function getFilesMultiTagger(req, res) {
-  if (fsDirs == null) {
-    fsDirs = await groupByPath();
-  }
+  if (!fsDirs) fsDirs = await groupByPath();
   let paramsPath;
   if (req.params.path) {
     paramsPath = req.params.path;
@@ -271,11 +270,12 @@ export async function importFiles(req, res) {
   await run(copier);
 
   const addedBooksPromises = queue.map((q) => {
-    if (q.lastIndexOf("/") != -1) {
-      return findBooksByPathAndTitle(
-        q.slice(q.lastIndexOf("/") + 1),
-        "/" + q.slice(0, q.lastIndexOf("/")),
-      );
+    const lastIndexOfSlash = q.lastIndexOf("/");
+    if (lastIndexOfSlash != -1) {
+      const title = q.slice(lastIndexOfSlash + 1);
+      const path = "/" + q.slice(0, lastIndexOfSlash);
+      console.log(title, path);
+      return findBooksByPathAndTitle(title, path);
     } else {
       return findBooksByPathAndTitle(q, "/");
     }
@@ -286,4 +286,37 @@ export async function importFiles(req, res) {
     thumbnail: file.id + ".webp",
   }));
   res.status(200).json(addedBooks);
+}
+export async function moveFiles(req, res) {
+  if (!req.body.files || !req.body.newPath)
+    res.status(400).json({ error: "Files or new Path are missing" });
+  const files = req.body.files;
+  const newPath = req.body.newPath;
+  const promises = files.map(async (file) => {
+    const lastIndexOfSlash = file.lastIndexOf("/");
+    if (lastIndexOfSlash != -1) {
+      const title = file.slice(lastIndexOfSlash + 1);
+      const path = file.slice(0, lastIndexOfSlash) || "/";
+      try {
+        await readdir(join(env.FOLDER_PATH, newPath));
+      } catch (e) {
+        if (e.code === "ENOENT") {
+          await mkdir(join(env.FOLDER_PATH, newPath), { recursive: true });
+        }
+      }
+      await copyFile(
+        join(env.FOLDER_PATH, file),
+        join(env.FOLDER_PATH, join(newPath, title)),
+      );
+      await rm(join(env.FOLDER_PATH, file));
+      return updateBooksPaths(title, path, newPath);
+    }
+  });
+
+  const movedBooks = (await Promise.all(promises)).map((file) => ({
+    ...file,
+    thumbnail: file.id + ".webp",
+  }));
+  fsDirs = await groupByPath();
+  res.status(200).json(movedBooks);
 }

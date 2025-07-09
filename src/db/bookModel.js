@@ -437,3 +437,14 @@ export async function getFilesFromSelectedAndUnselected(
     console.log("Error happened when trying to select files", e);
   }
 }
+export async function updateBooksPaths(bookTitle, bookPath, newPath) {
+  try {
+    const book = await findBooksByPathAndTitle(bookTitle, bookPath);
+    return await prisma.book.update({
+      data: { path: newPath },
+      where: { id: book.id },
+    });
+  } catch (e) {
+    console.log(e);
+  }
+}

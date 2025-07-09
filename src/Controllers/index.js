@@ -12,6 +12,7 @@ import {
   changeBooksTagsMultiTagger,
   getBooksMultiTagger,
   importFiles,
+  moveFiles,
 } from "./booksHandlers.js";
 import multer from "multer";
 const storage = multer.memoryStorage();
@@ -37,6 +38,7 @@ export default function getExpressApp() {
   app.patch("/books/multiTagger/updatetags", changeBooksTagsMultiTagger);
   app.delete("/books/multiTagger", deleteBooksBulkDelete);
   app.post("/books/multiTagger/importfile", mult.array("files"), importFiles);
+  app.patch("/books/multiTagger/moveFiles", moveFiles);
 
   return app;
 }
