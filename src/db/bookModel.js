@@ -1,6 +1,7 @@
 import { addTag } from "./tagModel.js";
 import prisma from "./prismaInit.js";
 import { join } from "path";
+
 export async function deleteBookByPath(filePath) {
   try {
     return await prisma.book.delete({ where: { path: filePath } });
@@ -9,7 +10,6 @@ export async function deleteBookByPath(filePath) {
     return null;
   }
 }
-
 export async function getDistinctBooksNumber() {
   const res = (await prisma.book.groupBy({ by: "title" })).length;
   return res;
@@ -46,7 +46,6 @@ export async function getDistinctFilteredBooksNumber(
   });
   return result.length;
 }
-
 export async function getBookByName(name) {
   try {
     const result = await prisma.book.findMany({ where: { title: name } });
@@ -71,17 +70,28 @@ export async function getBooksFromDB(
   pageNumber,
   tagsToFilterBy,
   searchName,
+  allTagsInBooks,
 ) {
   const and = [];
   if (
     tagsToFilterBy.length > 0 &&
     !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
   ) {
-    for (const tag of tagsToFilterBy) {
+    if (allTagsInBooks) {
+      for (const tag of tagsToFilterBy) {
+        and.push({
+          tags: {
+            some: {
+              name: { in: [tag] },
+            },
+          },
+        });
+      }
+    } else {
       and.push({
         tags: {
           some: {
-            name: { in: [tag] },
+            name: { in: [tagsToFilterBy] },
           },
         },
       });
@@ -165,7 +175,9 @@ export async function findBooksByTags(tagsList) {
     console.log("Error fetching books by tags:\n", err);
   }
 }
-
+export async function findBookById(id) {
+  return await prisma.book.findUnique({ where: { id: id } });
+}
 export async function changeTagsToBooks(addedTags, removedTags, bookname) {
   try {
     const books = await prisma.book.findMany({
@@ -251,7 +263,6 @@ export async function saveBook(uuid, name, path, atime, tags) {
     console.log(name, "error happened when saving a book \n", e);
   }
 }
-
 export async function deleteBookById(bookId) {
   try {
     await prisma.book.delete({ where: { id: bookId } });
@@ -275,7 +286,6 @@ export async function deleteBooksByPathandName(relativePath, name) {
     console.log("error happened removing books by name \n", e);
   }
 }
-
 export async function groupByPath() {
   try {
     const results = await prisma.book.findMany({

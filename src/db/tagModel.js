@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import prisma from "./prismaInit.js";
+
 export async function findTagsByName(tagsName) {
   try {
     return await prisma.tag.findMany({

@@ -1,72 +1,73 @@
-import { EventEmitter } from "events";
 import { statSync } from "fs";
 import { cp, rename } from "fs/promises";
 import path from "path";
 import { execSync } from "child_process";
+import { loop } from "./runGen.js";
+import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
 
-export default class copyRun extends EventEmitter {
+export default class copyRun {
   constructor() {
-    super();
     this.done = false;
     this.keepLooping = true;
-    this.on("Stop", () => {
-      (this.done = true), (this.keepLooping = false);
-    });
   }
+
   getShmFreeBytes() {
-    try {
-      const df = execSync("df --output=avail /dev/shm").toString().split("\n");
-      const kbFree = parseInt(df[1].trim(), 10);
-      return kbFree * 1024; // convert to bytes
-    } catch (err) {
-      if (err.signal === "SIGINT") {
-        console.warn(
-          "df was interrupted by SIGINT. Gracefully shutting down...",
-        );
-        return undefined; // or rethrow or handle as needed
-      }
-    }
+    const df = execSync("df --output=avail /dev/shm").toString().split("\n");
+    const kbFree = parseInt(df[1].trim(), 10);
+    return kbFree * 1024; // convert to bytes
   }
+  /**
+   *
+   * @param {string} file
+   * @returns whether the file has been copied to ram
+   */
+  async copyFileToRam(file) {
+    const localFile = process.env.FOLDER_PATH + file;
+    let totalSize = statSync(localFile).size;
 
-  async checkRamThenCopy(file) {
-    this.file = process.env.FOLDER_PATH + file;
-    if (this.totalSize == undefined) {
-      this.totalSize = statSync(this.file).size;
-    }
     const freeshm = this.getShmFreeBytes();
-    if (freeshm != undefined && freeshm > this.totalSize + 500 * 1024 * 1024) {
-      //console.log("stated copying", file);
-      try {
-        const destPath = path.join("/dev/shm/pdfManApp", file + ".partial");
-        await cp(this.file, destPath);
-        await rename(destPath, path.join("/dev/shm/pdfManApp", file));
-      } catch {
-        if (this.done == true) {
-          console.log("happened while exiting! normal");
-        }
-      }
-
-      this.totalSize = undefined;
-      this.canDelete = true;
-    } else if (freeshm == undefined) {
-      console.log("Exitting");
+    if (freeshm > totalSize + 500 * 1024 * 1024) {
+      const destPath = path.join("/dev/shm/pdfManApp", file + ".partial");
+      await cp(localFile, destPath);
+      await rename(destPath, path.join("/dev/shm/pdfManApp", file));
+      return true;
     } else {
       // 500MB buffer
       console.log("Waiting for shm space");
       await new Promise((res) => setTimeout(res, 5000));
-      this.canDelete = false;
+      return false;
     }
-
-    return;
   }
-  async startOp(files) {
-    console.log("Pushing ", files.length, " to Ram");
-    while (files.length > 0 && this.keepLooping == true) {
-      await this.checkRamThenCopy(files[0]);
-      if (this.canDelete == true) {
+  async addFilesToDb(files) {
+    files.forEach((filePath) =>
+      addPdfToDb(path.join(process.env.FOLDER_PATH, filePath)),
+    );
+  }
+  /**
+   * takes an array of pdf paths add them to db and  push them to ram
+   * @param {string[]} files
+   */
+  async startCopyingFilesToRam(files) {
+    while (files.length != 0 && this.keepLooping) {
+      let isCopied;
+      let file = files[0];
+      isCopied = await this.copyFileToRam(file.filePath);
+      if (isCopied) {
         files.shift();
       }
     }
     this.done = true;
+  }
+
+  /**
+   * start the process of generating thumbnails
+   */
+  async startGeneratingThumbnails() {
+    while (!this.done) {
+      await loop();
+    }
+    await loop();
+
+    console.log("Thumbs ready...");
   }
 }

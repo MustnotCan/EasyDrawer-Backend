@@ -14,10 +14,11 @@ import {
 } from "../db/bookModel.js";
 let fsDirs = null;
 import { env } from "node:process";
-import { run } from "../utils/main.js";
-import { flag } from "../utils/runGen.js";
+import { flagger } from "../utils/runGen.js";
 import copyRun from "../utils/syncCopyRun.js";
 import { join } from "node:path";
+import { v5 as uuidv5 } from "uuid";
+
 export async function getBooks(req, res) {
   let tagsToFilterBy = [];
   let reqTags = req.query.tags;
@@ -26,22 +27,24 @@ export async function getBooks(req, res) {
   }
   const searchName = req.query.searchName || "";
   try {
-    var take = Number.parseInt(req.query.take, 10) || 10;
-    var pageNumber = Number.parseInt(req.query.pn, 10) || 1;
+    let take = Number.parseInt(req.query.take, 10) || 10;
+    let pageNumber = Number.parseInt(req.query.pn, 10) || 1;
     if (isNaN(pageNumber) || pageNumber < 1) {
       pageNumber = 1;
     }
-    var result = await getBooksFromDB(
+    let allTagsInBooks = Boolean(req.query.allTagsInBooks) || true;
+    let result = await getBooksFromDB(
       take,
       pageNumber,
       tagsToFilterBy,
       searchName,
+      allTagsInBooks,
     );
     const data = result.map((res) => {
       return {
         id: res.id,
         title: res.title,
-        thumbnail: res.id + ".webp",
+        thumbnail: uuidv5(res.title, uuidv5.URL) + ".webp",
         tags: res.tags,
         path: res.path,
         markForLater: res.markForLater,
@@ -100,7 +103,7 @@ export async function getFilesMultiTagger(req, res) {
       return {
         id: res.id,
         title: res.title,
-        thumbnail: res.id + ".webp",
+        thumbnail: uuidv5(res.title, uuidv5.URL) + ".webp",
         tags: res.tags,
         path: res.path,
         lastOpened: res.lastOpened,
@@ -265,9 +268,9 @@ export async function importFiles(req, res) {
   await Promise.all(promises);
   const copier = new copyRun();
   const qq = [...queue];
-  copier.startOp(qq);
-  if (flag.getter() == false) flag.setter(true);
-  await run(copier);
+  copier.startCopyingFilesToRam(qq);
+  if (flagger.flag == false) flagger.flag = true;
+  await copier.startGeneratingThumbnails(qq.length);
 
   const addedBooksPromises = queue.map((q) => {
     const lastIndexOfSlash = q.lastIndexOf("/");

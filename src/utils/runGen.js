@@ -1,41 +1,48 @@
 import { readdir } from "node:fs/promises";
 import path from "path";
-import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
-import { runQueue } from "./thumbnailGeneration/thumbQueue.js";
-import { generateThumbnail } from "./pdfsOperation/generateThumbnail.js";
-function flagger() {
-  let flag = true;
-  function setFlag(newFlag) {
-    flag = newFlag;
-  }
-  function getFlag() {
-    return flag;
-  }
-  return { setter: setFlag, getter: getFlag };
-}
-function cleaner() {
-  let cleanTime = false;
-  function setcleanTime(newcleanTime) {
-    cleanTime = newcleanTime;
-  }
-  function getcleanTime() {
-    return cleanTime;
-  }
-  return { setter: setcleanTime, getter: getcleanTime };
-}
-export const flag = flagger();
-export const cleanTime = cleaner();
+import { addToQueue, runQueue } from "./thumbnailGeneration/thumbQueue.js";
+import { v5 as uuidv5 } from "uuid";
 
+/**
+ * if true then continue looping
+ */
+export let flagger = {
+  _flag: true,
+  set flag(newFlag) {
+    this._flag = newFlag;
+  },
+  get flag() {
+    return this._flag;
+  },
+};
+/**
+ * if true then clean the shm
+ */
+export let cleaner = {
+  _cleanTime: false,
+  set cleanTime(newCleanTime) {
+    this._cleanTime = newCleanTime;
+  },
+  get cleanTime() {
+    return this._cleanTime;
+  },
+};
+/**
+ * takes an array of string paths then generate thumbnails
+ * @param {string[]} files
+ */
 export async function gen(files) {
-  while (files.length != 0 && flag.getter() == true) {
+  while (files.length != 0 && flagger.flag == true) {
     const file = files.shift();
-    const { filePath, thumbnailPath, savedBook } = await addPdfToDb(file);
-    await generateThumbnail({ filePath, thumbnailPath, savedBook });
+    addToQueue(file.filePath, file.id);
   }
   await runQueue();
 }
+/**
+ * reads shm and loop over found files adding them to queue
+ */
 export async function loop() {
-  if (flag.getter()) {
+  if (flagger.flag) {
     try {
       const files = (
         await readdir("/dev/shm/pdfManApp", {
@@ -43,15 +50,16 @@ export async function loop() {
           recursive: true,
         })
       )
-        .filter((res) => res.isFile() && res.name.endsWith("pdf"))
-        .map((file) => {
-          return path.join(file.parentPath, file.name);
-        });
-      await gen(files);
-    } catch {
-      // just the pdfManAPp not existing yet
+        .filter((res) => res.isFile())
+        .map((file) => ({
+          filePath: path.join(file.parentPath, file.name),
+          id: uuidv5(file.name, uuidv5.URL),
+        }));
+      if (files.length > 0) await gen(files);
+    } catch (err) {
+      if (err.code !== "ENOENT") {
+        throw err;
+      }
     }
-  } else {
-    return;
   }
 }

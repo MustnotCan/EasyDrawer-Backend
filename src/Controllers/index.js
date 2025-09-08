@@ -15,6 +15,8 @@ import {
   moveFiles,
 } from "./booksHandlers.js";
 import multer from "multer";
+import { servePdf } from "../utils/utils.js";
+
 const storage = multer.memoryStorage();
 const mult = multer({ storage: storage });
 
@@ -23,8 +25,9 @@ export default function getExpressApp() {
   app.use(express.json({ limit: "1mb" }));
   app.use(cors({ origin: "*" }));
   app.use("/images", express.static(env.THUMBNAIL_FOLDER));
-  app.use("/pdfs", express.static(env.FOLDER_PATH));
+  app.use("/pdfs/:id", servePdf);
   app.use(express.json());
+
   app.get("/tags", getTags);
   app.post("/tags", postTags);
   app.patch("/tags", patchTags);

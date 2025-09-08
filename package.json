@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "test": "jest",
-    "start": "node src/utils/main.js",
+    "start": "node src/main.js",
     "cleardb": "node src/db/emptydb.js",
     "db": "npx nodemon src/Controllers/index.js",
-    "dev": "nodemon src/utils/main.js"
+    "dev": "nodemon src/main.js"
   },
   "keywords": [],
   "author": "",
@@ -39,6 +39,7 @@
     "express": "^4.21.2",
     "helmet": "^8.1.0",
     "multer": "^2.0.1",
-    "sanitize-filename": "^1.6.3"
+    "sanitize-filename": "^1.6.3",
+    "uuid": "^12.0.0"
   }
 }

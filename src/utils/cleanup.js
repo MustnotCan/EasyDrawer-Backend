@@ -1,12 +1,12 @@
-import { copier } from "./main.js";
+import { copier } from "../main.js";
 import { readdir, rm } from "fs/promises";
 import path from "path";
-import { flag, cleanTime } from "./runGen.js";
+import { flagger, cleaner } from "./runGen.js";
 export async function cleanup() {
   copier.keepLooping = false;
   copier.done = true;
-  cleanTime.setter(true);
-  flag.setter(false);
+  cleaner.cleanTime = true;
+  flagger.flag = false;
   let files = [];
   try {
     files = (
@@ -21,9 +21,12 @@ export async function cleanup() {
     );
   } catch (e) {
     if (e.code == "ENOENT") {
-      console.info(
-        "All thumbs are already generated or some copying error happened",
-      );
+      if (files > 0)
+        console.error(
+          "All thumbs are already generated or some copying error happened",
+        );
+    } else {
+      console.error(e);
     }
   }
 
@@ -35,10 +38,12 @@ export async function cleanup() {
       });
       files.shift();
     } catch (e) {
-      console.log("Error Happened");
+      console.error("Error Happened");
       if (e.code == "ENOENT") {
         console.log("still Shifting");
         files.shift();
+      } else {
+        console.error(e);
       }
     }
   }
