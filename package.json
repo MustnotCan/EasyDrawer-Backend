@@ -1,7 +1,7 @@
 {
   "name": "docmanbackend",
   "version": "0.0.1",
-  "main": "index.js",
+  "main": "main.js",
   "type": "module",
   "scripts": {
     "test": "jest",

@@ -70,14 +70,16 @@ export async function getBooksFromDB(
   pageNumber,
   tagsToFilterBy,
   searchName,
-  allTagsInBooks,
+  isAnd,
+  orderByCriteria,
+  orderByDirection,
 ) {
   const and = [];
   if (
     tagsToFilterBy.length > 0 &&
     !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
   ) {
-    if (allTagsInBooks) {
+    if (isAnd) {
       for (const tag of tagsToFilterBy) {
         and.push({
           tags: {
@@ -88,16 +90,9 @@ export async function getBooksFromDB(
         });
       }
     } else {
-      and.push({
-        tags: {
-          some: {
-            name: { in: [tagsToFilterBy] },
-          },
-        },
-      });
+      and.push({ tags: { some: { name: { in: tagsToFilterBy } } } });
     }
   }
-
   if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
     and.push({ tags: { every: { name: { in: [] } } } });
   }
@@ -105,15 +100,14 @@ export async function getBooksFromDB(
     and.push({ title: { mode: "insensitive", contains: searchName } });
   }
   try {
+    const oB = { [orderByCriteria]: orderByDirection };
     const result = await prisma.book.findMany({
       take: take,
       skip: (pageNumber - 1) * take, //pages start at 1
-      orderBy: { title: "asc" },
+      orderBy: oB,
       distinct: "title",
       include: { tags: true },
-      where: {
-        AND: and,
-      },
+      where: { AND: and },
     });
     return result;
   } catch (err) {
@@ -242,7 +236,15 @@ export async function removeTagFromBook(tagId, bookId) {
     return false;
   }
 }
-export async function saveBook(uuid, name, path, atime, tags) {
+export async function saveBook(
+  uuid,
+  name,
+  path,
+  lastAccess,
+  lastModified,
+  addedDate,
+  tags,
+) {
   const bookTags = tags.map((ele) => ele.split(",")).flat();
   try {
     for (const tag of bookTags) {
@@ -255,7 +257,9 @@ export async function saveBook(uuid, name, path, atime, tags) {
         id: uuid,
         title: name,
         path: path,
-        lastOpened: atime,
+        lastAccess: lastAccess,
+        lastModified: lastModified,
+        addedDate: addedDate,
         tags: { connect: bookTags.map((tag) => ({ name: tag })) },
       },
     });

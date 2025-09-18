@@ -4,7 +4,8 @@ import { cleanup } from "./utils/cleanup.js";
 import getExpressApp from "./Controllers/index.js";
 import { configDotenv } from "dotenv";
 import { newFiles } from "./utils/utils.js";
-
+import PdfFile from "./utils/pdfClass.js";
+import "./startup.js";
 configDotenv();
 let doneGenerating = false;
 process.on("SIGINT", async () => {
@@ -18,8 +19,16 @@ process.on("beforeExit", async () => {
   await cleanup();
 });
 
+export let nbrofFiles = {
+  _nbrofFiles: 0,
+  set nbrofFiles(nbr) {
+    this._nbrofFiles = nbr;
+  },
+  get nbrofFiles() {
+    return this._nbrofFiles;
+  },
+};
 export const copier = new copyRun();
-export let nbrofFiles = 0;
 const app = getExpressApp();
 app.listen(env.PORT, async () => {
   console.log(`Server started on http://localhost:${env.PORT}`);
@@ -27,16 +36,20 @@ app.listen(env.PORT, async () => {
   if (filesToAddToDb.length > 0) {
     console.log(" --> Found new Files: adding to db !");
     console.log(`adding ${filesToAddToDb.length} new files to db `);
-    copier.addFilesToDb(filesToAddToDb);
+    PdfFile.addFilesToDb(
+      filesToAddToDb.map((file) => PdfFile.fromFileSystem(file)),
+    );
   }
-  nbrofFiles = thumbnailsToGenerate.length;
-  if (nbrofFiles > 0) {
+  nbrofFiles.nbrofFiles = thumbnailsToGenerate.length;
+  if (nbrofFiles.nbrofFiles > 0) {
     console.log(" --> Starting generating thumbnails !");
     copier.startCopyingFilesToRam(thumbnailsToGenerate);
-    console.time(`Generated thumbnails for ${nbrofFiles} files in`);
+    console.time(`Generated thumbnails for ${nbrofFiles.nbrofFiles} files in`);
     copier.startGeneratingThumbnails().then(() => {
       copier.done == true;
-      console.timeEnd(`Generated thumbnails for ${nbrofFiles} files in`);
+      console.timeEnd(
+        `Generated thumbnails for ${nbrofFiles.nbrofFiles} files in`,
+      );
     });
   } else {
     console.log("No new thumbnails to generate found at startup");

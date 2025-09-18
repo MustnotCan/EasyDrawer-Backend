@@ -12,9 +12,13 @@ let nbrProcessed = 0;
 export async function queueHandling(queue) {
   return await Promise.allSettled(
     queue.map((file) => savePdfThumbnail(file.filePath, file.uuid)),
-  ).then(async () => {
+  ).then(() => {
     nbrProcessed += queue.length;
-    const state = ((nbrProcessed / nbrofFiles) * 100).toFixed(0);
+    console.log(nbrofFiles.nbrofFiles, nbrProcessed);
+    const state = Math.min(
+      ((nbrProcessed / nbrofFiles.nbrofFiles) * 100).toFixed(0),
+      100,
+    );
     if (queue.length > 0) {
       console.log(`${state}% `);
       if (Number(state) < 100) {
@@ -39,16 +43,16 @@ async function savePdfThumbnail(pdfPath, uuid) {
     exec(
       `pdftoppm -f 1 -l 1 -singlefile -cropbox "${pdfPath}" "${outputBase}" && cwebp -q 100 -resize 250 300 "${generatedPng}" -o "${webpFile}" && rm "${outputBase}.ppm"`,
       (err, stdout) => {
-        if (err) {
+        if (err && err.code != 1) {
           console.error(
-            `\n thumbnail generation failed for ${pdfPath.slice("/dev/shm/pdfManApp".length)}, likely the pdf file is invalid or corrupted : ${err} \n`,
+            `\n thumbnail generation failed for ${pdfPath.slice("/dev/shm/pdfManApp".length)}, likely the pdf file is invalid or corrupted :  `,
           );
+          console.log(err);
         }
         resolve(stdout);
       },
     );
   });
-  //console.log("deleting :", pdfPath);
   await fs.rm(pdfPath);
   return webpFile;
 }

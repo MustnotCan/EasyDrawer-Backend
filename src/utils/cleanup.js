@@ -7,6 +7,10 @@ export async function cleanup() {
   copier.done = true;
   cleaner.cleanTime = true;
   flagger.flag = false;
+  await clearnShm();
+  process.exit();
+}
+export async function clearnShm() {
   let files = [];
   try {
     files = (
@@ -47,5 +51,4 @@ export async function cleanup() {
       }
     }
   }
-  process.exit();
 }

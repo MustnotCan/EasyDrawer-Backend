@@ -3,7 +3,6 @@ import { cp, rename } from "fs/promises";
 import path from "path";
 import { execSync } from "child_process";
 import { loop } from "./runGen.js";
-import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
 
 export default class copyRun {
   constructor() {
@@ -22,9 +21,10 @@ export default class copyRun {
    * @returns whether the file has been copied to ram
    */
   async copyFileToRam(file) {
-    const localFile = process.env.FOLDER_PATH + file;
-    let totalSize = statSync(localFile).size;
+    const localFile = path.join(process.env.FOLDER_PATH, file);
+    // file : single/single/beautiful/Unclassified/CIN.pdf
 
+    let totalSize = statSync(localFile).size;
     const freeshm = this.getShmFreeBytes();
     if (freeshm > totalSize + 500 * 1024 * 1024) {
       const destPath = path.join("/dev/shm/pdfManApp", file + ".partial");
@@ -38,20 +38,16 @@ export default class copyRun {
       return false;
     }
   }
-  async addFilesToDb(files) {
-    files.forEach((filePath) =>
-      addPdfToDb(path.join(process.env.FOLDER_PATH, filePath)),
-    );
-  }
+
   /**
-   * takes an array of pdf paths add them to db and  push them to ram
+   * takes an array of pdf paths and push them to ram
    * @param {string[]} files
    */
   async startCopyingFilesToRam(files) {
     while (files.length != 0 && this.keepLooping) {
       let isCopied;
       let file = files[0];
-      isCopied = await this.copyFileToRam(file.filePath);
+      isCopied = await this.copyFileToRam(file);
       if (isCopied) {
         files.shift();
       }
@@ -66,8 +62,8 @@ export default class copyRun {
     while (!this.done) {
       await loop();
     }
-    await loop();
 
+    await loop();
     console.log("Thumbs ready...");
   }
 }

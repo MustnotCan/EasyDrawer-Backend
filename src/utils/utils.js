@@ -9,24 +9,64 @@ import { v5 as uuidv5 } from "uuid";
 export const servePdf = async (req, res) => {
   try {
     const bookId = req.params.id;
-    const book = await findBookById(bookId);
-    // To add ranges later
-    const stream = fs.createReadStream(
-      path.join(env.FOLDER_PATH, book.path, book.title),
-    );
 
-    stream.pipe(res);
+    const book = await findBookById(bookId);
+
+    const filePath = path.join(env.FOLDER_PATH, book.path, book.title);
+    const stat = fs.statSync(filePath);
+    const fileSize = stat.size;
+    const range = req.headers.range;
+
+    if (range) {
+      // Parse range: e.g. "bytes=1000-2000"
+      const parts = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": "application/pdf",
+      });
+
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      // No range requested, send full file
+      res.writeHead(200, {
+        "Content-Length": fileSize,
+        "Content-Type": "application/pdf",
+        "Accept-Ranges": "bytes",
+      });
+      fs.createReadStream(filePath).pipe(res);
+    }
   } catch (e) {
     console.log(e);
   }
 };
 export async function newFiles() {
+  const files = [];
+  const foundFilesFS = readdirSync(env.FOLDER_PATH, {
+    recursive: true,
+    withFileTypes: true,
+  }).filter((file) => file.isFile() && file.name.endsWith(".pdf"));
+  files.push(
+    ...foundFilesFS.map((file) => path.join(file.parentPath, file.name)),
+  );
   const existingBooks = await getAllBooks();
-  const existingValidThumbs = existingBooks.filter((book) => {
+  const existingBooksFullPaths = existingBooks.map((eb) =>
+    path.join(env.FOLDER_PATH, eb.path, eb.title),
+  );
+  const copierFiles = files
+    .filter((fl) => !existingBooksFullPaths.includes(fl))
+    .map((file) => file.slice(env.FOLDER_PATH.length));
+  const allBooksTitles = [...new Set(foundFilesFS.map((file) => file.name))];
+  const existingValidThumbs = allBooksTitles.filter((bookTitle) => {
     try {
       const thumbnailPath = path.join(
         env.THUMBNAIL_FOLDER,
-        uuidv5(book.title, uuidv5.URL) + ".webp",
+        uuidv5(bookTitle, uuidv5.URL) + ".webp",
       );
       accessSync(thumbnailPath);
       return statSync(thumbnailPath).size != 0;
@@ -34,57 +74,12 @@ export async function newFiles() {
       return false;
     }
   });
-  const res = readdirSync(env.FOLDER_PATH, {
-    recursive: true,
-    withFileTypes: true,
-  });
-  const files = [];
-  files.push(
-    ...res
-      .filter((file) => file.isFile() && path.parse(file.name).ext == ".pdf")
-      .sort(
-        (a, b) =>
-          path.join(b.parentPath, b.name).length -
-          path.join(a.parentPath, a.name).length,
-      )
-      .map((file) => path.join(file.parentPath, file.name)),
-  );
-  const validPaths = new Set(
-    existingValidThumbs.map((file) =>
-      path.join(env.FOLDER_PATH, file.path, file.title),
-    ),
-  );
-  const copierFiles = files
-    .map((file) => {
-      if (!validPaths.has(file)) {
-        return file.replace(process.env.FOLDER_PATH, "");
-      } else {
-        return null;
-      }
-    })
-    .filter((file) => file !== null);
-
-  const uniqueFilesByTitle = new Set(
-    copierFiles.map((filePath) =>
-      filePath.slice(filePath.lastIndexOf("/") + 1),
-    ),
-  );
-  const pathsOfUiques = [];
-  uniqueFilesByTitle.forEach((title) => {
-    const filePath = copierFiles.find(
-      (filePath) => filePath.slice(filePath.lastIndexOf("/") + 1) == title,
+  const thumbnailsToGenerate = allBooksTitles
+    .filter((bt) => !existingValidThumbs.includes(bt))
+    .map((fileName) => foundFilesFS.find((file) => file.name == fileName))
+    .map((file) =>
+      path.join(file.parentPath.slice(env.FOLDER_PATH.length), file.name),
     );
-    pathsOfUiques.push({ filePath, name: title });
-  });
-  const thumbnailsToGenerate = pathsOfUiques.filter((f) => {
-    try {
-      const BookId = uuidv5(f.name, uuidv5.URL);
-      fs.accessSync(process.env.THUMBNAIL_FOLDER + BookId + ".webp");
-      return false;
-    } catch (e) {
-      if (e.code == "ENOENT") return true;
-    }
-  });
   return {
     filesToAddToDb: copierFiles,
     thumbnailsToGenerate: thumbnailsToGenerate,

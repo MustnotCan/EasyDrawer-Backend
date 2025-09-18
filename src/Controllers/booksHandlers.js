@@ -16,30 +16,37 @@ let fsDirs = null;
 import { env } from "node:process";
 import { flagger } from "../utils/runGen.js";
 import copyRun from "../utils/syncCopyRun.js";
-import { join } from "node:path";
+import path, { join } from "node:path";
 import { v5 as uuidv5 } from "uuid";
+import PdfFile from "../utils/pdfClass.js";
+import { nbrofFiles } from "../main.js";
 
 export async function getBooks(req, res) {
-  let tagsToFilterBy = [];
-  let reqTags = req.query.tags;
-  if (reqTags && typeof reqTags == "string") {
-    tagsToFilterBy.push(...reqTags.split(","));
-  }
-  const searchName = req.query.searchName || "";
   try {
     let take = Number.parseInt(req.query.take, 10) || 10;
     let pageNumber = Number.parseInt(req.query.pn, 10) || 1;
     if (isNaN(pageNumber) || pageNumber < 1) {
       pageNumber = 1;
     }
-    let allTagsInBooks = Boolean(req.query.allTagsInBooks) || true;
+    let isAnd = req.query.isAnd == "false" ? false : true;
+    let orderByCriteria = req.query.oB;
+    let orderByDirection = req.query.direction;
+    let tagsToFilterBy = [];
+    let reqTags = req.query.tags;
+    if (reqTags && typeof reqTags == "string") {
+      tagsToFilterBy.push(...reqTags.split(","));
+    }
+    const searchName = req.query.searchName || "";
     let result = await getBooksFromDB(
       take,
       pageNumber,
       tagsToFilterBy,
       searchName,
-      allTagsInBooks,
+      isAnd,
+      orderByCriteria,
+      orderByDirection,
     );
+
     const data = result.map((res) => {
       return {
         id: res.id,
@@ -47,8 +54,9 @@ export async function getBooks(req, res) {
         thumbnail: uuidv5(res.title, uuidv5.URL) + ".webp",
         tags: res.tags,
         path: res.path,
-        markForLater: res.markForLater,
-        lastOpened: res.lastOpened,
+        lastAccess: res.lastAccess,
+        lastModified: res.lastModified,
+        addedDate: res.addedDate,
       };
     });
     const countBooksInDb = await getDistinctFilteredBooksNumber(
@@ -104,9 +112,8 @@ export async function getFilesMultiTagger(req, res) {
         id: res.id,
         title: res.title,
         thumbnail: uuidv5(res.title, uuidv5.URL) + ".webp",
-        tags: res.tags,
         path: res.path,
-        lastOpened: res.lastOpened,
+        addedDate: res.addedDate,
       };
     });
     res.status(200).json({
@@ -118,6 +125,7 @@ export async function getFilesMultiTagger(req, res) {
       console.log("Path do not exist");
       res.status(401).json({});
     }
+    console.log(e);
     res.status(500).json({ error: e });
   }
 }
@@ -207,18 +215,13 @@ export async function deleteBooksBulkDelete(req, res) {
   }
   try {
     await Promise.all(
-      req.body.files.map((file) => {
-        const lastIndexOfSlash = file.lastIndexOf("/");
-        if (lastIndexOfSlash == 0) {
-          rm(env.FOLDER_PATH + file.slice(1));
-          return deleteBooksByPathandName(file.slice(0, 1), file.slice(1));
-        } else {
-          rm(env.FOLDER_PATH + file);
-          return deleteBooksByPathandName(
-            file.slice(0, lastIndexOfSlash),
-            file.slice(lastIndexOfSlash + 1),
-          );
-        }
+      req.body.files.map(async (file) => {
+        const pdfInstance = PdfFile.fromFileSystem(file);
+        await rm(pdfInstance.fullPath);
+        return await deleteBooksByPathandName(
+          pdfInstance.relativePath,
+          pdfInstance.name,
+        );
       }),
     );
     fsDirs = await groupByPath();
@@ -231,16 +234,17 @@ export async function deleteBooksBulkDelete(req, res) {
 export async function importFiles(req, res) {
   const files = req.files;
   const queue = [];
-  const path = req.body.dir || "";
+  const newRelativePath =
+    req.body.dir[0] == "/" ? req.body.dir.slice(1) : req.body.dir || "";
   let promises;
   if (req.body.paths) {
     const paths =
       typeof req.body.paths === "string" ? [req.body.paths] : req.body.paths;
     promises = files.map(async (file, index) => {
-      const dir =
-        env.FOLDER_PATH +
-        (path != "" ? path.slice(1) + "/" : "") +
-        paths[index].slice(0, paths[index].lastIndexOf("/"));
+      const nameAndRPath = PdfFile.getNameAndRelativePath(
+        path.join(newRelativePath, paths[index]),
+      );
+      const dir = path.join(env.FOLDER_PATH, nameAndRPath.relativePath);
       try {
         await readdir(dir);
       } catch (e) {
@@ -248,45 +252,59 @@ export async function importFiles(req, res) {
           await mkdir(dir, { recursive: true });
         }
       }
-      await writeFile(
-        env.FOLDER_PATH +
-          (path != "" ? path.slice(1) + "/" : "") +
-          paths[index],
-        file.buffer,
+      const dest = PdfFile.getFullPath(
+        nameAndRPath.name,
+        nameAndRPath.relativePath,
       );
-      queue.push((path != "" ? path.slice(1) + "/" : "") + paths[index]);
+
+      await writeFile(dest, file.buffer);
+      const pdfInstance = PdfFile.fromFileSystem(
+        path.join(nameAndRPath.relativePath, nameAndRPath.name),
+      );
+      queue.push(pdfInstance);
     });
   } else {
     promises = files.map(async (file) => {
-      const rp =
-        (path != "" ? path.slice(1) + "/" : "") +
-        Buffer.from(file.originalname, "latin1").toString("utf8");
-      await writeFile(env.FOLDER_PATH + rp, file.buffer);
-      queue.push(rp);
+      const nameAndRPath = PdfFile.getNameAndRelativePath(
+        path.join(
+          newRelativePath,
+          Buffer.from(file.originalname, "latin1").toString("utf8"),
+        ),
+      );
+      await writeFile(
+        PdfFile.getFullPath(nameAndRPath.name, nameAndRPath.relativePath),
+        file.buffer,
+      );
+      const pdfInstance = PdfFile.fromFileSystem(
+        path.join(
+          newRelativePath,
+          Buffer.from(file.originalname, "latin1").toString("utf8"),
+        ),
+      );
+      queue.push(pdfInstance);
     });
   }
   await Promise.all(promises);
-  const copier = new copyRun();
   const qq = [...queue];
-  copier.startCopyingFilesToRam(qq);
-  if (flagger.flag == false) flagger.flag = true;
-  await copier.startGeneratingThumbnails(qq.length);
 
-  const addedBooksPromises = queue.map((q) => {
-    const lastIndexOfSlash = q.lastIndexOf("/");
-    if (lastIndexOfSlash != -1) {
-      const title = q.slice(lastIndexOfSlash + 1);
-      const path = "/" + q.slice(0, lastIndexOfSlash);
-      console.log(title, path);
-      return findBooksByPathAndTitle(title, path);
-    } else {
-      return findBooksByPathAndTitle(q, "/");
-    }
+  await PdfFile.addFilesToDb(qq);
+  const fullPaths = qq.map((file) => path.join(file.relativePath, file.name));
+  nbrofFiles.nbrofFiles += fullPaths.length;
+  const copier = new copyRun();
+
+  await copier.startCopyingFilesToRam(fullPaths);
+  if (flagger.flag == false) flagger.flag = true;
+  await copier.startGeneratingThumbnails();
+
+  const addedBooksPromises = queue.map(async (q) => {
+    const res = await findBooksByPathAndTitle(q.name, q.relativePath);
+    return res;
   });
   fsDirs = await groupByPath();
-  const addedBooks = (await Promise.all(addedBooksPromises)).map((file) => ({
+  const tmp = await Promise.all(addedBooksPromises);
+  const addedBooks = tmp.map((file) => ({
     ...file,
-    thumbnail: file.id + ".webp",
+    thumbnail: uuidv5(file.title, uuidv5.URL) + ".webp",
   }));
   res.status(200).json(addedBooks);
 }
@@ -318,7 +336,7 @@ export async function moveFiles(req, res) {
 
   const movedBooks = (await Promise.all(promises)).map((file) => ({
     ...file,
-    thumbnail: file.id + ".webp",
+    thumbnail: uuidv5(file.title, uuidv5.URL) + ".webp",
   }));
   fsDirs = await groupByPath();
   res.status(200).json(movedBooks);

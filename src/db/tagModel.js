@@ -23,11 +23,15 @@ export async function deleteTagById(tagId) {
 }
 export async function addTag(tagName) {
   try {
-    return await prisma.tag.upsert({
-      create: { name: tagName, id: randomUUID() },
-      update: { undefined },
-      where: { name: tagName },
-    });
+    const found = await prisma.tag.findUnique({ where: { name: tagName } });
+    if (found == null) {
+      return await prisma.tag.upsert({
+        create: { name: tagName, id: randomUUID() },
+        update: { undefined },
+        where: { name: tagName },
+      });
+    }
+    return found;
   } catch (err) {
     console.log("Error while adding tag:\n", err);
   }
@@ -53,25 +57,25 @@ export async function deleteTagByName(tagName) {
 }
 export async function getAllTags() {
   try {
-    let favoriteTag = { name: "", id: "" };
-    let unclassifiedTag = { name: "", id: "" };
     let toAdd = [];
     let existingTagsName = await prisma.tag.findMany({
       orderBy: { name: "asc" },
+      select: { name: true, id: true, book: true },
     });
+
     const loweredExistingTags = existingTagsName.map((tag) =>
       tag.name.toLowerCase(),
     );
-    if (loweredExistingTags.includes("favorite") == false) {
-      favoriteTag.id = randomUUID();
-      favoriteTag.name = "Favorite";
-      toAdd.push(favoriteTag);
-    }
-    if (loweredExistingTags.includes("unclassified") == false) {
-      unclassifiedTag.id = randomUUID();
-      unclassifiedTag.name = "Unclassified";
-      toAdd.push(unclassifiedTag);
-    }
+    const defaultTags = ["favorite", "bin", "unclassified"];
+
+    defaultTags.forEach((tag) => {
+      if (!loweredExistingTags.includes(tag)) {
+        toAdd.push({
+          id: randomUUID(),
+          name: tag,
+        });
+      }
+    });
     if (toAdd.length != 0) {
       existingTagsName = existingTagsName.concat(
         await prisma.tag.createManyAndReturn({
@@ -79,6 +83,11 @@ export async function getAllTags() {
         }),
       );
     }
+    existingTagsName = existingTagsName.map((tag) => ({
+      name: tag.name,
+      id: tag.id,
+      booksCount: tag.book ? new Set(tag.book.map((bk) => bk.title)).size : 0,
+    }));
 
     return existingTagsName;
   } catch (err) {

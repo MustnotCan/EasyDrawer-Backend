@@ -50,7 +50,7 @@ export async function loop() {
           recursive: true,
         })
       )
-        .filter((res) => res.isFile())
+        .filter((res) => res.isFile() && res.name.endsWith(".pdf"))
         .map((file) => ({
           filePath: path.join(file.parentPath, file.name),
           id: uuidv5(file.name, uuidv5.URL),

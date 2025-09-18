@@ -9,7 +9,7 @@ export async function getTags(req, res) {
     const tags = await getAllTags();
     const returned = [];
     for (const tag of tags) {
-      returned.push({ id: tag.id, name: tag.name });
+      returned.push({ ...tag });
     }
     res.status(200).json(returned);
   } catch (error) {
