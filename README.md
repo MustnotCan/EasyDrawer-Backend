@@ -1,4 +1,4 @@
-# PDF Managemen Backend
+# EasyDrawer Backend
 
 ## Description
 
@@ -135,7 +135,7 @@ Make sure your PostgreSQL database is running.
 1. **Clone the Repository**
    Clone this repository to your local machine and navigate into the project directory.
 2. **Install Dependencies**
-   npm run install
+   run "npm run install", install popper-utils and webp
 3. **Configure Environment Variables**Create a `.env` file in the root of the project and define the following variables:
 
    - `DATABASE_URL` – Connection string to your PostgreSQL database.
