@@ -4,8 +4,6 @@
 
 This repository is the main hub for announcements and updates about the **EasyDrawer** app (name subject to change), a Single Page Application (SPA) designed for easy, straightforward, and self-hosted PDF management. The app allows users to organize, browse, and manage their PDF collections efficiently, with a focus on deployment in personal or private server environments.
 
----
-
 ## Features
 
 - **Filesystem-like Import & Reorganization**
@@ -27,11 +25,9 @@ This repository is the main hub for announcements and updates about the **EasyDr
 - **Easy Deployment with Docker Compose**
   Ready for quick deployment using Docker Compose.
 
----
-
 ## Preview
 
-<video src="assets/demo.mp4" controls width="600"></video>
+![](assets/demo.gif)
 
 ## Technology Stack
 
@@ -55,15 +51,11 @@ Additional dependencies installed via apt packages:
 - `webp`
 - `poppler-utils`
 
----
-
 ## Upcoming Features
 
 - Full-text and fuzzy search
 - Duplication detection
 - Authentication
-
----
 
 ## Contribution
 
@@ -151,6 +143,7 @@ Make sure your PostgreSQL database is running.
    - `FOLDER_PATH` – Absolute path to the folder containing the PDF files.
    - `THUMBNAIL_FOLDER` – Absolute path to the folder where thumbnails will be generated.
    - `PORT` – Port number the application will run on (e.g., `3000`).
+
 4. **Run Database Migrations**
    If you're setting up a fresh database, run "npx prisma migrate dev" command to initialize the schema.
 5. **Start the Development Server**
