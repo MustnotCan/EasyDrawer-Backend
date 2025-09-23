@@ -1,38 +1,37 @@
-# PDF Management Backend
+# PDF Managemen Backend
 
 ## Description
 
-This repository is the main hub for announcements and updates about the **PDF Management** app (name subject to change), a Single Page Application (SPA) designed for easy, straightforward, and self-hosted PDF management. The app allows users to organize, browse, and manage their PDF collections efficiently, with a focus on deployment in personal or private server environments.
+This repository is the main hub for announcements and updates about the **EasyDrawer** app (name subject to change), a Single Page Application (SPA) designed for easy, straightforward, and self-hosted PDF management. The app allows users to organize, browse, and manage their PDF collections efficiently, with a focus on deployment in personal or private server environments.
 
 ---
 
 ## Features
 
-- **Fast Thumbnail Generation**
-  Thumbnails are generated quickly and saved on disk for improved performance.
-
+- **Filesystem-like Import & Reorganization**
+  Import new files or folders and reorganize them in a filesystem-like interface — all changes are reflected directly in the host’s filesystem.
+- **Folder & File Management**
+  Add, delete, and tag files directly from the app interface.
 - **Tag-based PDF Management**
   Organize and categorize PDFs efficiently using tags.
-
-- **Paginated Browsing**
-  Browse your PDF library with pagination for better navigation.
-
-- **Support for Duplicate Books**
-  Handle duplicated PDF files seamlessly.
-
-- **Search & Filter**
-  Search PDFs by name and filter by tags (additional search features coming soon).
-
-- **Folder & File Management**
-  Add, delete, tag directly from the app interface.
-
 - **Bulk Tagging & Editing**
   Apply tags and edits to multiple files at once.
-
+- **Support for Duplicate Books**
+  Handle duplicated PDF files seamlessly.
+- **Search & Filter**
+  Search PDFs by name and filter by tags (additional search features coming soon).
+- **Paginated Browsing**
+  Browse your PDF library with pagination for better navigation.
+- **Fast Thumbnail Generation**
+  Thumbnails are generated quickly and saved on disk for improved performance.
 - **Easy Deployment with Docker Compose**
   Ready for quick deployment using Docker Compose.
 
 ---
+
+## Preview
+
+<video src="assets/demo.mp4" controls width="600"></video>
 
 ## Technology Stack
 
@@ -69,9 +68,6 @@ Additional dependencies installed via apt packages:
 ## Contribution
 
 Issues and feature requests are welcome.
-**Note:** Code contributions are currently not accepted.
-
----
 
 ## Docker
 
@@ -144,28 +140,20 @@ volumes:
 Follow the steps below to set up the project locally:
 Make sure your PostgreSQL database is running.
 
-1. **Clone the Repository**  
+1. **Clone the Repository**
    Clone this repository to your local machine and navigate into the project directory.
-
-2. **Install Dependencies**  
+2. **Install Dependencies**
    npm run install
+3. **Configure Environment Variables**Create a `.env` file in the root of the project and define the following variables:
 
-3. **Configure Environment Variables**  
-   Create a `.env` file in the root of the project and define the following variables:
-
-   - `DATABASE_URL` – Connection string to your PostgreSQL database.  
+   - `DATABASE_URL` – Connection string to your PostgreSQL database.
      Example: `postgresql://myuser:mypassword@localhost:5432/PDFMAN`
-
    - `FOLDER_PATH` – Absolute path to the folder containing the PDF files.
-
    - `THUMBNAIL_FOLDER` – Absolute path to the folder where thumbnails will be generated.
-
    - `PORT` – Port number the application will run on (e.g., `3000`).
-
-4. **Run Database Migrations**  
+4. **Run Database Migrations**
    If you're setting up a fresh database, run "npx prisma migrate dev" command to initialize the schema.
-
-5. **Start the Development Server**  
+5. **Start the Development Server**
    -run "npm start" or "npm run dev"(for nodemon)
 
 License Notice:
