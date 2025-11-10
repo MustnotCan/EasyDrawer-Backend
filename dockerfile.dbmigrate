@@ -8,8 +8,6 @@ RUN npm install prisma
 COPY prisma ./prisma
 COPY dbmigrate.entrypoint.sh ./entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
-# REQUIRED ENV: fix when running image
-# - DATABASE_URL: Postgres connection string for Prisma
-RUN npx prisma generate
+
 
 ENTRYPOINT ["./entrypoint.sh"]

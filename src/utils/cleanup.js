@@ -1,28 +1,23 @@
 import { copier } from "../main.js";
 import { readdir, rm } from "fs/promises";
-import path from "path";
+import { join } from "path";
 import { flagger, cleaner } from "./runGen.js";
+import { ac } from "./thumbnailGeneration/thumbGeneration.js";
 export async function cleanup() {
   copier.keepLooping = false;
   copier.done = true;
   cleaner.cleanTime = true;
   flagger.flag = false;
+  ac.abort();
   await clearnShm();
   process.exit();
 }
 export async function clearnShm() {
   let files = [];
   try {
-    files = (
-      await readdir("/dev/shm/pdfManApp", {
-        recursive: true,
-        withFileTypes: true,
-      })
-    ).sort(
-      (a, b) =>
-        path.join(b.parentPath, b.name).length -
-        path.join(a.parentPath, a.name).length,
-    );
+    files = await readdir("/dev/shm/pdfManApp", {
+      withFileTypes: true,
+    });
   } catch (e) {
     if (e.code == "ENOENT") {
       if (files > 0)
@@ -37,18 +32,11 @@ export async function clearnShm() {
   while (files.length != 0) {
     const file = files[0];
     try {
-      await rm(path.join(file.parentPath, file.name), {
-        recursive: file.isDirectory(),
-      });
+      await rm(join(file.parentPath, file.name), { recursive: true });
       files.shift();
     } catch (e) {
-      console.error("Error Happened");
-      if (e.code == "ENOENT") {
-        console.log("still Shifting");
-        files.shift();
-      } else {
-        console.error(e);
-      }
+      console.error(e);
+      files.shift();
     }
   }
 }

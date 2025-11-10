@@ -1,6 +1,6 @@
 import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
 import { env } from "node:process";
-import path from "path";
+import { join } from "path";
 import { v5 as uuidv5 } from "uuid";
 import { statSync } from "node:fs";
 export default class PdfFile {
@@ -17,7 +17,7 @@ export default class PdfFile {
     // /Unclassified
     this.relativePath = relativePath;
     this.fullPath = !fullPath
-      ? path.join(env.FOLDER_PATH, relativePath, name)
+      ? join(env.FOLDER_PATH, relativePath, name)
       : fullPath;
     this.lastAccess = !lastAccess ? statSync(this.fullPath).atime : lastAccess;
     this.lastModified = !lastModified
@@ -46,7 +46,7 @@ export default class PdfFile {
     return { name: name, relativePath: relativePath };
   }
   static getFullPath(name, relativePath) {
-    return path.join(env.FOLDER_PATH, relativePath, name);
+    return join(env.FOLDER_PATH, relativePath, name);
   }
   static fromFileSystem(relativePathWithName) {
     const { name, relativePath } =

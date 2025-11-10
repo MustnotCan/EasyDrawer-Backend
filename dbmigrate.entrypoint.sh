@@ -6,6 +6,6 @@ if [ -z "$DATABASE_URL" ]; then
 fi
 
 echo "Running Prisma Migrations..."
-npx prisma migrate dev -n first
+npx prisma migrate deploy -n first
 echo "✅ Done"
 

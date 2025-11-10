@@ -1,5 +1,5 @@
 import { readdir } from "node:fs/promises";
-import path from "path";
+import { join } from "path";
 import { addToQueue, runQueue } from "./thumbnailGeneration/thumbQueue.js";
 import { v5 as uuidv5 } from "uuid";
 
@@ -52,7 +52,7 @@ export async function loop() {
       )
         .filter((res) => res.isFile() && res.name.endsWith(".pdf"))
         .map((file) => ({
-          filePath: path.join(file.parentPath, file.name),
+          filePath: join(file.parentPath, file.name),
           id: uuidv5(file.name, uuidv5.URL),
         }));
       if (files.length > 0) await gen(files);

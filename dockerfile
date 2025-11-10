@@ -24,10 +24,21 @@ FROM node:20-slim AS runtime
 
 WORKDIR /app
 
-
-# Install required tools
-RUN apt update && apt-get install -y openssl webp poppler-utils curl && \
+# Install required tools: add Python + venv support + utilities
+RUN apt update && apt-get install -y \
+    openssl \
+    python3 \
+    python3-venv \
+    python3-pip \
+    webp \
+    poppler-utils \
+    curl && \
     apt clean && rm -rf /var/lib/apt/lists/*
+
+# Create and activate Python virtual environment
+RUN python3 -m venv /app/.venv && \
+    /app/.venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /app/.venv/bin/pip install --no-cache-dir pymupdf
 
 # Copy only production dependencies
 COPY package*.json ./
@@ -44,10 +55,13 @@ RUN mkdir -p /pdfs /thumbnails && \
 
 # Copy entrypoint script
 COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh 
+
+# Set environment variables
+ENV PATH="/app/.venv/bin:$PATH"
+
 USER node
 
-# Expose and set user
+# Expose and set entrypoint
 EXPOSE 3001
-
 ENTRYPOINT [ "/app/entrypoint.sh" ]

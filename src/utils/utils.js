@@ -1,9 +1,8 @@
 import { findBookById } from "../db/bookModel.js";
-import path from "node:path";
-import fs from "fs";
+import { join } from "node:path";
 import { env } from "node:process";
 import { getAllBooks } from "../db/bookModel.js";
-import { accessSync, readdirSync, statSync } from "node:fs";
+import { accessSync, readdirSync, statSync, createReadStream } from "node:fs";
 import { v5 as uuidv5 } from "uuid";
 
 export const servePdf = async (req, res) => {
@@ -12,8 +11,8 @@ export const servePdf = async (req, res) => {
 
     const book = await findBookById(bookId);
 
-    const filePath = path.join(env.FOLDER_PATH, book.path, book.title);
-    const stat = fs.statSync(filePath);
+    const filePath = join(env.FOLDER_PATH, book.path, book.title);
+    const stat = statSync(filePath);
     const fileSize = stat.size;
     const range = req.headers.range;
 
@@ -31,7 +30,7 @@ export const servePdf = async (req, res) => {
         "Content-Type": "application/pdf",
       });
 
-      fs.createReadStream(filePath, { start, end }).pipe(res);
+      createReadStream(filePath, { start, end }).pipe(res);
     } else {
       // No range requested, send full file
       res.writeHead(200, {
@@ -39,7 +38,7 @@ export const servePdf = async (req, res) => {
         "Content-Type": "application/pdf",
         "Accept-Ranges": "bytes",
       });
-      fs.createReadStream(filePath).pipe(res);
+      createReadStream(filePath).pipe(res);
     }
   } catch (e) {
     console.log(e);
@@ -51,12 +50,10 @@ export async function newFiles() {
     recursive: true,
     withFileTypes: true,
   }).filter((file) => file.isFile() && file.name.endsWith(".pdf"));
-  files.push(
-    ...foundFilesFS.map((file) => path.join(file.parentPath, file.name)),
-  );
+  files.push(...foundFilesFS.map((file) => join(file.parentPath, file.name)));
   const existingBooks = await getAllBooks();
   const existingBooksFullPaths = existingBooks.map((eb) =>
-    path.join(env.FOLDER_PATH, eb.path, eb.title),
+    join(env.FOLDER_PATH, eb.path, eb.title),
   );
   const copierFiles = files
     .filter((fl) => !existingBooksFullPaths.includes(fl))
@@ -64,7 +61,7 @@ export async function newFiles() {
   const allBooksTitles = [...new Set(foundFilesFS.map((file) => file.name))];
   const existingValidThumbs = allBooksTitles.filter((bookTitle) => {
     try {
-      const thumbnailPath = path.join(
+      const thumbnailPath = join(
         env.THUMBNAIL_FOLDER,
         uuidv5(bookTitle, uuidv5.URL) + ".webp",
       );
@@ -78,7 +75,7 @@ export async function newFiles() {
     .filter((bt) => !existingValidThumbs.includes(bt))
     .map((fileName) => foundFilesFS.find((file) => file.name == fileName))
     .map((file) =>
-      path.join(file.parentPath.slice(env.FOLDER_PATH.length), file.name),
+      join(file.parentPath.slice(env.FOLDER_PATH.length), file.name),
     );
   return {
     filesToAddToDb: copierFiles,

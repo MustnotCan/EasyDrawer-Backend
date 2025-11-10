@@ -17,23 +17,27 @@ export async function getDistinctBooksNumber() {
 export async function getDistinctFilteredBooksNumber(
   tagsToFilterBy,
   searchName,
+  isAnd,
 ) {
   const and = [];
   if (
     tagsToFilterBy.length > 0 &&
     !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
   ) {
-    for (const tag of tagsToFilterBy) {
-      and.push({
-        tags: {
-          some: {
-            name: { in: [tag] },
+    if (isAnd) {
+      for (const tag of tagsToFilterBy) {
+        and.push({
+          tags: {
+            some: {
+              name: { in: [tag] },
+            },
           },
-        },
-      });
+        });
+      }
+    } else {
+      and.push({ tags: { some: { name: { in: tagsToFilterBy } } } });
     }
   }
-
   if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
     and.push({ tags: { every: { name: { in: [] } } } });
   }
@@ -128,7 +132,13 @@ export async function findBooksByPathAndTitle(title, path) {
   try {
     return await prisma.book.findFirst({
       where: { path: path, title: title },
-      include: { tags: true },
+      select: {
+        id: true,
+        path: true,
+        title: true,
+        tags: true,
+        addedDate: true,
+      },
     });
   } catch (err) {
     console.log("Error fetching books by path & title:\n", err);
@@ -145,32 +155,31 @@ export async function findBooksByPath(path) {
   }
 }
 export async function findBooksByTags(tagsList) {
+  const and = [];
+  for (const tag of tagsList) {
+    and.push({
+      tags: {
+        some: {
+          name: { in: [tag] },
+        },
+      },
+    });
+  }
   try {
     return await prisma.book.findMany({
       where: {
-        AND: [
-          {
-            tags: {
-              every: {
-                name: { in: tagsList },
-              },
-            },
-          },
-          {
-            tags: {
-              some: {},
-            },
-          },
-        ],
+        AND: and,
       },
-      distinct: "path",
     });
   } catch (err) {
     console.log("Error fetching books by tags:\n", err);
   }
 }
-export async function findBookById(id) {
-  return await prisma.book.findUnique({ where: { id: id } });
+export async function findBookById(id, withTags = false) {
+  return await prisma.book.findUnique({
+    where: { id: id },
+    include: { tags: withTags },
+  });
 }
 export async function changeTagsToBooks(addedTags, removedTags, bookname) {
   try {

@@ -8,6 +8,7 @@ services:
       FOLDER_PATH: /pdfs/
       THUMBNAIL_FOLDER: /thumbnails/
       PORT: 3001
+      MEILISEARCH_API: http://localhost:7700
     ports:
       - "3001:3001"
     depends_on:
@@ -25,12 +26,13 @@ services:
     ports:
       - "5173:80"
     environment:
-      - API=http://localhost:3001/ #if this is hosted on another device, you should put here its ip adress
+      - API=http://localhost:3001/ # Ples replace localhost with local ip adress eg: 192.168.1.10
+      - MEILISEARCH_URL= http://localhost:7700 
     depends_on:
       - back-end
   db:
     image: postgres
-    container_name: postgresdb
+    container_name: postgresdb:17
     restart: always
     environment:
       POSTGRES_USER: myuser

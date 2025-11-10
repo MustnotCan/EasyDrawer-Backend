@@ -11,16 +11,29 @@ import {
   deleteBooksByPathandName,
   findBooksByPathAndTitle,
   updateBooksPaths,
+  findBooksByTags,
+  findBookById,
 } from "../db/bookModel.js";
 let fsDirs = null;
 import { env } from "node:process";
 import { flagger } from "../utils/runGen.js";
 import copyRun from "../utils/syncCopyRun.js";
-import path, { join } from "node:path";
+import { join } from "node:path";
 import { v5 as uuidv5 } from "uuid";
 import PdfFile from "../utils/pdfClass.js";
 import { nbrofFiles } from "../main.js";
+import indexFile from "../utils/extractTextContentWithPython.js";
+import { Meilisearch } from "meilisearch";
+import pLimit from "p-limit";
+import { cpus } from "node:os";
+import ndjson from "ndjson";
+import zlib from "zlib";
 
+let sseListeners = [];
+// meili task's id are incremental and so skipping garantiying
+let pendingMeiliTasks = [];
+let currentIndexedCount = 0;
+let indexingCount = 0;
 export async function getBooks(req, res) {
   try {
     let take = Number.parseInt(req.query.take, 10) || 10;
@@ -62,6 +75,7 @@ export async function getBooks(req, res) {
     const countBooksInDb = await getDistinctFilteredBooksNumber(
       tagsToFilterBy,
       searchName,
+      isAnd,
     );
     const count = Math.ceil(countBooksInDb / take);
     const toSend = {
@@ -97,12 +111,8 @@ export async function patchBooks(req, res) {
 }
 export async function getFilesMultiTagger(req, res) {
   if (!fsDirs) fsDirs = await groupByPath();
-  let paramsPath;
-  if (req.params.path) {
-    paramsPath = req.params.path;
-  } else {
-    paramsPath = "/";
-  }
+  const paramsPath = req.params.path ? req.params.path : "/";
+
   try {
     const directories = fsDirs.filter((dir) => dir.path == paramsPath)[0]
       .subpaths;
@@ -242,9 +252,9 @@ export async function importFiles(req, res) {
       typeof req.body.paths === "string" ? [req.body.paths] : req.body.paths;
     promises = files.map(async (file, index) => {
       const nameAndRPath = PdfFile.getNameAndRelativePath(
-        path.join(newRelativePath, paths[index]),
+        join(newRelativePath, paths[index]),
       );
-      const dir = path.join(env.FOLDER_PATH, nameAndRPath.relativePath);
+      const dir = join(env.FOLDER_PATH, nameAndRPath.relativePath);
       try {
         await readdir(dir);
       } catch (e) {
@@ -259,14 +269,14 @@ export async function importFiles(req, res) {
 
       await writeFile(dest, file.buffer);
       const pdfInstance = PdfFile.fromFileSystem(
-        path.join(nameAndRPath.relativePath, nameAndRPath.name),
+        join(nameAndRPath.relativePath, nameAndRPath.name),
       );
       queue.push(pdfInstance);
     });
   } else {
     promises = files.map(async (file) => {
       const nameAndRPath = PdfFile.getNameAndRelativePath(
-        path.join(
+        join(
           newRelativePath,
           Buffer.from(file.originalname, "latin1").toString("utf8"),
         ),
@@ -276,7 +286,7 @@ export async function importFiles(req, res) {
         file.buffer,
       );
       const pdfInstance = PdfFile.fromFileSystem(
-        path.join(
+        join(
           newRelativePath,
           Buffer.from(file.originalname, "latin1").toString("utf8"),
         ),
@@ -288,7 +298,7 @@ export async function importFiles(req, res) {
   const qq = [...queue];
 
   await PdfFile.addFilesToDb(qq);
-  const fullPaths = qq.map((file) => path.join(file.relativePath, file.name));
+  const fullPaths = qq.map((file) => join(file.relativePath, file.name));
   nbrofFiles.nbrofFiles += fullPaths.length;
   const copier = new copyRun();
 
@@ -298,6 +308,12 @@ export async function importFiles(req, res) {
 
   const addedBooksPromises = queue.map(async (q) => {
     const res = await findBooksByPathAndTitle(q.name, q.relativePath);
+    sseListeners.forEach((listener) => {
+      listener.write(
+        `event: successImport\n` +
+          `data: ${res.title} imported successfully\n\n`,
+      );
+    });
     return res;
   });
   fsDirs = await groupByPath();
@@ -306,8 +322,10 @@ export async function importFiles(req, res) {
     ...file,
     thumbnail: uuidv5(file.title, uuidv5.URL) + ".webp",
   }));
+
   res.status(200).json(addedBooks);
 }
+
 export async function moveFiles(req, res) {
   if (!req.body.files || !req.body.newPath)
     res.status(400).json({ error: "Files or new Path are missing" });
@@ -340,4 +358,130 @@ export async function moveFiles(req, res) {
   }));
   fsDirs = await groupByPath();
   res.status(200).json(movedBooks);
+}
+
+export async function index_files(req, res) {
+  if (!process.env.MEILISEARCH_API) {
+    console.log(process.env.MEILISEARCH_API);
+    res.status(500).json({ error: "meiliSearch uri not set" });
+    return;
+  }
+  if (!req.body.index || !req.body.tag) {
+    res.status(400).json({
+      error:
+        "Please check that the request contains both the index uid and the tag to index",
+    });
+  }
+  const client = new Meilisearch({ host: process.env.MEILISEARCH_API });
+  const tag = req.body.tag;
+  const index = req.body.index;
+  const indexedClient = client.index(index);
+  const p = pLimit(cpus().length / 2);
+  const foundBooksIntags = await findBooksByTags([tag]);
+  if (indexingCount == currentIndexedCount) {
+    indexingCount = 0;
+    currentIndexedCount = 0;
+  }
+  indexingCount =
+    indexingCount == 0
+      ? indexingCount + foundBooksIntags.length
+      : foundBooksIntags.length;
+  indexedClient.getDocuments({});
+  const promises = foundBooksIntags.map((file) =>
+    p(() =>
+      indexFile(join(env.FOLDER_PATH + file.path, file.title), file.id)
+        .then((documents) => indexedClient.addDocuments(documents))
+        .then((task) => {
+          pendingMeiliTasks.push({
+            taskuid: task.taskUid,
+            fileTitle: file.title,
+            type: "indexing",
+            index: task.indexUid,
+          });
+        })
+        .catch(() => {
+          currentIndexedCount += 1;
+          sseListeners.forEach((listener) => {
+            listener.write(
+              `event: indexingFailed\n` +
+                `data:  ${currentIndexedCount}/${indexingCount} : ${file.title} failed indexing in ${index} \n\n`,
+            );
+          });
+        }),
+    ),
+  );
+  Promise.allSettled(promises);
+  res.status(200).json(foundBooksIntags);
+}
+export async function findFilesDetails(req, res) {
+  const filesToFind = req.body.files;
+  const promises = filesToFind.map((fileId) => findBookById(fileId, true));
+  const responses = await Promise.allSettled(promises).then((promises) =>
+    promises.map((pr) => pr.value),
+  );
+  const returns = responses.map((file) => ({
+    thumbnail: uuidv5(file.title, uuidv5.URL) + ".webp",
+    ...file,
+  }));
+  res.status(200).json(returns);
+  if (!filesToFind) {
+    res.status(300).json({ error: "files not included in the body" });
+  }
+}
+export async function sseHandler(req, res) {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  sseListeners.push(res);
+  req.on("close", () => {
+    res.end();
+  });
+}
+export async function webHookHandler(req, res) {
+  const encoding = req.headers["content-encoding"];
+  let stream = req;
+  if (encoding === "gzip") {
+    stream = req.pipe(zlib.createGunzip());
+  }
+  stream
+    .pipe(ndjson.parse())
+    .on("data", (doneTask) => {
+      const pendingTaskIndex = pendingMeiliTasks.findIndex(
+        (task) =>
+          task.taskuid == doneTask.uid && task.index == doneTask.indexUid,
+      );
+      const pendingTask = pendingMeiliTasks[pendingTaskIndex];
+      if (pendingTask && pendingTask.type == "indexing") {
+        currentIndexedCount += 1;
+
+        doneTask.status == "succeeded" &&
+          sseListeners.forEach((listener) => {
+            listener.write(
+              `event: indexingSucceeded\n` +
+                `data:  ${currentIndexedCount}/${indexingCount} : ${pendingTask.fileTitle} indexed successfully in ${doneTask.indexUid} \n\n`,
+            );
+          });
+        doneTask.status == "failed" &&
+          sseListeners.forEach((listener) => {
+            listener.write(
+              `event: indexingFailed\n` +
+                `data:  ${currentIndexedCount}/${indexingCount} : ${pendingTask.fileTitle} failed indexing in ${doneTask.indexUid} \n\n`,
+            );
+          });
+      } else {
+        sseListeners.forEach((listener) => {
+          listener.write(
+            `event: message\n` +
+              `data: ${JSON.stringify({ index: doneTask.indexUid, status: doneTask.status, type: doneTask.type })}\n\n`,
+          );
+        });
+      }
+      pendingMeiliTasks.splice(pendingTaskIndex, 1);
+    })
+    .on("error", () => {
+      res.sendStatus(400);
+    })
+    .on("end", () => {
+      res.sendStatus(200);
+    });
 }

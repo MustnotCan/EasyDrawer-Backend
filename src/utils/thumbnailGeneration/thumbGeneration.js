@@ -4,6 +4,7 @@ import { exec } from "child_process";
 import path from "path";
 import { nbrofFiles } from "../../main.js";
 let nbrProcessed = 0;
+export const ac = new AbortController();
 /**
  * takes a queue of paths and start generation for each file
  * @param {string[]} queue
@@ -39,15 +40,16 @@ async function savePdfThumbnail(pdfPath, uuid) {
   const webpFile = `${filePath}.webp`;
   const outputBase = filePath.replace(/\.webp$/, "");
   const generatedPng = `${outputBase}.ppm`;
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
     exec(
       `pdftoppm -f 1 -l 1 -singlefile -cropbox "${pdfPath}" "${outputBase}" && cwebp -q 100 -resize 250 300 "${generatedPng}" -o "${webpFile}" && rm "${outputBase}.ppm"`,
+      { signal: ac.signal, killSignal: "SIGKILL" },
       (err, stdout) => {
-        if (err && err.code != 1) {
+        if (err && err.code != 1 && err.code != "ABORT_ERR") {
           console.error(
             `\n thumbnail generation failed for ${pdfPath.slice("/dev/shm/pdfManApp".length)}, likely the pdf file is invalid or corrupted :  `,
           );
-          console.log(err);
+          reject(err);
         }
         resolve(stdout);
       },

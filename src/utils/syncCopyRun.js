@@ -1,9 +1,9 @@
 import { statSync } from "fs";
 import { cp, rename } from "fs/promises";
-import path from "path";
+import { join } from "path";
 import { execSync } from "child_process";
 import { loop } from "./runGen.js";
-
+import { setTimeout } from "timers/promises";
 export default class copyRun {
   constructor() {
     this.done = false;
@@ -21,20 +21,20 @@ export default class copyRun {
    * @returns whether the file has been copied to ram
    */
   async copyFileToRam(file) {
-    const localFile = path.join(process.env.FOLDER_PATH, file);
+    const localFile = join(process.env.FOLDER_PATH, file);
     // file : single/single/beautiful/Unclassified/CIN.pdf
 
     let totalSize = statSync(localFile).size;
     const freeshm = this.getShmFreeBytes();
     if (freeshm > totalSize + 500 * 1024 * 1024) {
-      const destPath = path.join("/dev/shm/pdfManApp", file + ".partial");
+      const destPath = join("/dev/shm/pdfManApp", file + ".partial");
       await cp(localFile, destPath);
-      await rename(destPath, path.join("/dev/shm/pdfManApp", file));
+      await rename(destPath, join("/dev/shm/pdfManApp", file));
       return true;
     } else {
       // 500MB buffer
       console.log("Waiting for shm space");
-      await new Promise((res) => setTimeout(res, 5000));
+      await setTimeout(5000);
       return false;
     }
   }
@@ -45,9 +45,8 @@ export default class copyRun {
    */
   async startCopyingFilesToRam(files) {
     while (files.length != 0 && this.keepLooping) {
-      let isCopied;
       let file = files[0];
-      isCopied = await this.copyFileToRam(file);
+      const isCopied = await this.copyFileToRam(file);
       if (isCopied) {
         files.shift();
       }

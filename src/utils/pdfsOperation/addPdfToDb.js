@@ -1,5 +1,5 @@
 import { saveBook, findBooksByPathAndTitle } from "../../db/bookModel.js";
-import path from "node:path";
+import { join } from "node:path";
 import { env } from "node:process";
 /**
  * takes a pdf path and add it to db
@@ -18,7 +18,7 @@ export async function addPdfToDb(file) {
     foundBook.lastModified == undefined ||
     foundBook.addedDate == undefined
   ) {
-    thumbnailPath = env.THUMBNAIL_FOLDER + path.join(file.thumbnail + ".webp");
+    thumbnailPath = env.THUMBNAIL_FOLDER + join(file.thumbnail + ".webp");
 
     savedBook = await saveBook(
       file.uuid,
