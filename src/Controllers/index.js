@@ -17,6 +17,9 @@ import {
   findFilesDetails,
   sseHandler,
   webHookHandler,
+  getCatalog,
+  deleteByTag,
+  getBooksFromSelected,
 } from "./booksHandlers.js";
 import multer from "multer";
 import { servePdf } from "../utils/utils.js";
@@ -38,6 +41,8 @@ export default function getExpressApp() {
   app.delete("/tags", deleteTags);
   app.post("/tag/index", index_files);
 
+  app.get("/catalog", getCatalog);
+
   app.get("/sse", sseHandler);
   app.post("/webhook", webHookHandler);
 
@@ -45,7 +50,8 @@ export default function getExpressApp() {
   app.post("/books", findFilesDetails);
   app.patch("/books", patchBooks);
   app.delete("/books/:id", deleteBooks);
-
+  app.delete("/books/tag/:tag", deleteByTag);
+  app.post("/books/bulk", getBooksFromSelected);
   app.get("/books/multiTagger/:path?", getFilesMultiTagger);
   app.post("/books/multiTagger/tags", getBooksMultiTagger);
   app.patch("/books/multiTagger/updatetags", changeBooksTagsMultiTagger);

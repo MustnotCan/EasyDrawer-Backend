@@ -5,21 +5,39 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  
-}
-model book{
-  id String @id @db.Uuid @default(uuid()) @unique()
-  title String @db.VarChar(255) 
-  tags tag[] 
-  path String @db.VarChar(500) 
-  description String? @db.Text()
-  lastAccess DateTime?
-  addedDate DateTime?
-  lastModified DateTime? 
-}
-model tag{
-id String @id @db.Uuid @default(uuid())
-name String @unique()
-book book[] 
 }
 
+model book {
+  id            String       @id @unique() @default(uuid()) @db.Uuid
+  title         String       @db.VarChar(255)
+  tags          tag[]
+  path          String       @db.VarChar(500)
+  description   String?      @db.Text()
+  lastAccess    DateTime?
+  addedDate     DateTime?
+  lastModified  DateTime?
+  textExtracted Boolean      @default(false)
+  textContent   textContent? @relation(name: "bookToTextContent")
+  indexes       String[]     @default([]) @db.VarChar(30)
+}
+
+model tag {
+  id   String @id @unique() @default(uuid()) @db.Uuid
+  name String @unique()
+  book book[]
+}
+
+model textContent {
+  id     String @id @unique() @default(uuid()) @db.Uuid
+  book   book?  @relation(name: "bookToTextContent", fields: [bookId], references: [id], onDelete: Cascade)
+  bookId String @unique @db.Uuid
+  pages  page[] @relation(name: "contentToPages")
+}
+
+model page {
+  id            String      @id @unique() @default(uuid()) @db.Uuid
+  pageNumber    Int
+  text          String?     @db.Text()
+  textContentId String      @db.Uuid
+  Content       textContent @relation(name: "contentToPages", fields: [textContentId], references: [id], onDelete: Cascade)
+}

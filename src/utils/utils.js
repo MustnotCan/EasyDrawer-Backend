@@ -8,28 +8,23 @@ import { v5 as uuidv5 } from "uuid";
 export const servePdf = async (req, res) => {
   try {
     const bookId = req.params.id;
-
     const book = await findBookById(bookId);
-
     const filePath = join(env.FOLDER_PATH, book.path, book.title);
     const stat = statSync(filePath);
     const fileSize = stat.size;
     const range = req.headers.range;
-
     if (range) {
       // Parse range: e.g. "bytes=1000-2000"
       const parts = range.replace(/bytes=/, "").split("-");
       const start = parseInt(parts[0], 10);
       const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
       const chunkSize = end - start + 1;
-
       res.writeHead(206, {
         "Content-Range": `bytes ${start}-${end}/${fileSize}`,
         "Accept-Ranges": "bytes",
         "Content-Length": chunkSize,
         "Content-Type": "application/pdf",
       });
-
       createReadStream(filePath, { start, end }).pipe(res);
     } else {
       // No range requested, send full file
@@ -55,6 +50,7 @@ export async function newFiles() {
   const existingBooksFullPaths = existingBooks.map((eb) =>
     join(env.FOLDER_PATH, eb.path, eb.title),
   );
+
   const copierFiles = files
     .filter((fl) => !existingBooksFullPaths.includes(fl))
     .map((file) => file.slice(env.FOLDER_PATH.length));
@@ -71,12 +67,14 @@ export async function newFiles() {
       return false;
     }
   });
+
   const thumbnailsToGenerate = allBooksTitles
     .filter((bt) => !existingValidThumbs.includes(bt))
     .map((fileName) => foundFilesFS.find((file) => file.name == fileName))
     .map((file) =>
       join(file.parentPath.slice(env.FOLDER_PATH.length), file.name),
     );
+
   return {
     filesToAddToDb: copierFiles,
     thumbnailsToGenerate: thumbnailsToGenerate,

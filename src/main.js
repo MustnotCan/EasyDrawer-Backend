@@ -1,34 +1,25 @@
 import { env } from "node:process";
-import copyRun from "./utils/syncCopyRun.js";
-import { cleanup } from "./utils/cleanup.js";
 import getExpressApp from "./Controllers/index.js";
 import { configDotenv } from "dotenv";
 import { newFiles } from "./utils/utils.js";
 import PdfFile from "./utils/pdfClass.js";
-import "./startup.js";
+import "./utils/startup.js";
+import { addThumbnailGenerationTask } from "./utils/tasksQueue.js";
+import { addFilesToDb } from "./utils/addPdfToDb.js";
+import { spawn } from "node:child_process";
 configDotenv();
-let doneGenerating = false;
-process.on("SIGINT", async () => {
-  if (doneGenerating != true) {
-    console.log("\n Manual exit, thumbnail generation is not done");
-  }
-  console.log("\n Shutting down the application");
-  await cleanup();
-});
-process.on("beforeExit", async () => {
-  await cleanup();
-});
+try {
+  await new Promise((res, rej) => {
+    const spawned = spawn("npx", ["prisma", "migrate", "deploy"]);
+    spawned.on("exit", () => res());
+    spawned.stdout.on("data", (data) => console.log(String(data)));
+    spawned.on("error", (err) => rej(err));
+  });
+} catch (e) {
+  console.error(e);
+  process.exit();
+}
 
-export let nbrofFiles = {
-  _nbrofFiles: 0,
-  set nbrofFiles(nbr) {
-    this._nbrofFiles = nbr;
-  },
-  get nbrofFiles() {
-    return this._nbrofFiles;
-  },
-};
-export const copier = new copyRun();
 const app = getExpressApp();
 app.listen(env.PORT, async () => {
   console.log(`Server started on http://localhost:${env.PORT}`);
@@ -36,23 +27,22 @@ app.listen(env.PORT, async () => {
   if (filesToAddToDb.length > 0) {
     console.log(" --> Found new Files: adding to db !");
     console.log(`adding ${filesToAddToDb.length} new files to db `);
-    PdfFile.addFilesToDb(
-      filesToAddToDb.map((file) => PdfFile.fromFileSystem(file)),
-    );
+    addFilesToDb(filesToAddToDb.map((file) => PdfFile.fromFileSystem(file)));
   }
-  nbrofFiles.nbrofFiles = thumbnailsToGenerate.length;
-  if (nbrofFiles.nbrofFiles > 0) {
-    console.log(" --> Starting generating thumbnails !");
-    copier.startCopyingFilesToRam(thumbnailsToGenerate);
-    console.time(`Generated thumbnails for ${nbrofFiles.nbrofFiles} files in`);
-    copier.startGeneratingThumbnails().then(() => {
-      copier.done == true;
-      console.timeEnd(
-        `Generated thumbnails for ${nbrofFiles.nbrofFiles} files in`,
-      );
-    });
+  if (thumbnailsToGenerate.length > 0) {
+    console.log(
+      " --> Starting generating thumbnails ! ",
+      thumbnailsToGenerate.length,
+    );
+    console.time(`Generated thumbnails`);
+
+    const promises = thumbnailsToGenerate.map((relativePath) =>
+      addThumbnailGenerationTask(relativePath),
+    );
+
+    await Promise.all(promises);
+    console.timeEnd(`Generated thumbnails`);
   } else {
     console.log("No new thumbnails to generate found at startup");
   }
-  doneGenerating = true;
 });

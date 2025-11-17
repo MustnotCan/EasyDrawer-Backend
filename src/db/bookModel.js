@@ -1,7 +1,7 @@
 import { addTag } from "./tagModel.js";
 import prisma from "./prismaInit.js";
 import { join } from "path";
-
+import { client } from "../Controllers/booksHandlers.js";
 export async function deleteBookByPath(filePath) {
   try {
     return await prisma.book.delete({ where: { path: filePath } });
@@ -11,32 +11,39 @@ export async function deleteBookByPath(filePath) {
   }
 }
 export async function getDistinctBooksNumber() {
-  const res = (await prisma.book.groupBy({ by: "title" })).length;
+  const res = await prisma.$queryRaw`
+  SELECT COUNT(DISTINCT "title")::int AS count FROM "Book";
+`;
   return res;
 }
+const andOr = (tags, isAnd) => {
+  const and = [];
+  if (isAnd) {
+    for (const tag of tags) {
+      and.push({
+        tags: {
+          some: {
+            name: { in: [tag] },
+          },
+        },
+      });
+    }
+  } else {
+    and.push({ tags: { some: { name: { in: tags } } } });
+  }
+  return and;
+};
 export async function getDistinctFilteredBooksNumber(
   tagsToFilterBy,
   searchName,
   isAnd,
 ) {
-  const and = [];
+  let and = [];
   if (
     tagsToFilterBy.length > 0 &&
     !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
   ) {
-    if (isAnd) {
-      for (const tag of tagsToFilterBy) {
-        and.push({
-          tags: {
-            some: {
-              name: { in: [tag] },
-            },
-          },
-        });
-      }
-    } else {
-      and.push({ tags: { some: { name: { in: tagsToFilterBy } } } });
-    }
+    and = andOr(tagsToFilterBy, isAnd);
   }
   if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
     and.push({ tags: { every: { name: { in: [] } } } });
@@ -44,11 +51,10 @@ export async function getDistinctFilteredBooksNumber(
   if (searchName.length > 0) {
     and.push({ title: { mode: "insensitive", contains: searchName } });
   }
-  const result = await prisma.book.groupBy({
-    by: "title",
+  const result = await prisma.book.count({
     where: { AND: and },
   });
-  return result.length;
+  return result;
 }
 export async function getBookByName(name) {
   try {
@@ -62,7 +68,7 @@ export async function getBookByName(name) {
 export async function getAllBooks() {
   try {
     const books = await prisma.book.findMany({
-      select: { id: true, path: true, title: true },
+      select: { id: true, path: true, title: true, lastModified: true },
     });
     return books;
   } catch (e) {
@@ -78,24 +84,12 @@ export async function getBooksFromDB(
   orderByCriteria,
   orderByDirection,
 ) {
-  const and = [];
+  let and = [];
   if (
     tagsToFilterBy.length > 0 &&
     !tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")
   ) {
-    if (isAnd) {
-      for (const tag of tagsToFilterBy) {
-        and.push({
-          tags: {
-            some: {
-              name: { in: [tag] },
-            },
-          },
-        });
-      }
-    } else {
-      and.push({ tags: { some: { name: { in: tagsToFilterBy } } } });
-    }
+    and = andOr(tagsToFilterBy, isAnd);
   }
   if (tagsToFilterBy.map((tag) => tag.toLowerCase()).includes("unclassified")) {
     and.push({ tags: { every: { name: { in: [] } } } });
@@ -109,7 +103,6 @@ export async function getBooksFromDB(
       take: take,
       skip: (pageNumber - 1) * take, //pages start at 1
       orderBy: oB,
-      distinct: "title",
       include: { tags: true },
       where: { AND: and },
     });
@@ -154,22 +147,20 @@ export async function findBooksByPath(path) {
     console.log("Error fetching books by path:\n", err);
   }
 }
-export async function findBooksByTags(tagsList) {
-  const and = [];
-  for (const tag of tagsList) {
-    and.push({
-      tags: {
-        some: {
-          name: { in: [tag] },
-        },
-      },
-    });
-  }
+export async function findBooksByTags(
+  tagsList,
+  isAnd = false,
+  distinctByTitle = false,
+) {
+  let and = [];
+  and = andOr(tagsList, isAnd);
+
   try {
     return await prisma.book.findMany({
       where: {
         AND: and,
       },
+      distinct: distinctByTitle ? "title" : "id",
     });
   } catch (err) {
     console.log("Error fetching books by tags:\n", err);
@@ -181,15 +172,18 @@ export async function findBookById(id, withTags = false) {
     include: { tags: withTags },
   });
 }
-export async function changeTagsToBooks(addedTags, removedTags, bookname) {
+export async function changeTagsToBooks(addedTags, removedTags, path) {
   try {
+    const lastIndexOfSlash = path.lastIndexOf("/");
+    const relativePath = path.slice(0, lastIndexOfSlash);
+    const title = path.slice(lastIndexOfSlash + 1);
     const books = await prisma.book.findMany({
-      where: { title: bookname },
+      where: { title: title, path: relativePath },
       select: { id: true }, // Fetch only book IDs
     });
 
     if (books.length === 0) {
-      console.log("No books found with title:", bookname);
+      console.log("No books found with title:", path);
       return false;
     }
     const modifiedBooks = await prisma.$transaction(
@@ -202,7 +196,7 @@ export async function changeTagsToBooks(addedTags, removedTags, bookname) {
               disconnect: removedTags.map((tag) => ({ id: tag.id })),
             },
           },
-          select: { title: true, tags: true },
+          select: { title: true, tags: true, path: true },
         }),
       ),
     );
@@ -215,16 +209,10 @@ export async function changeTagsToBooks(addedTags, removedTags, bookname) {
 export async function changeTagsToMultipleBooks(
   addedTags,
   removedTags,
-  booksNames,
+  booksPaths,
 ) {
   return await Promise.all(
-    booksNames.map((bookName) =>
-      changeTagsToBooks(
-        addedTags,
-        removedTags,
-        bookName.slice(bookName.lastIndexOf("/") + 1),
-      ),
-    ),
+    booksPaths.map((path) => changeTagsToBooks(addedTags, removedTags, path)),
   );
 }
 export async function removeTagFromBook(tagId, bookId) {
@@ -278,32 +266,78 @@ export async function saveBook(
 }
 export async function deleteBookById(bookId) {
   try {
-    await prisma.book.delete({ where: { id: bookId } });
+    const deletedBook = await prisma.book.delete({ where: { id: bookId } });
+    deletedBook.indexes.forEach((index) =>
+      client
+        .index(index)
+        .deleteDocuments({ filter: { fileId: deletedBook.id } }),
+    );
   } catch (e) {
     console.log("error happened removing a book by id \n", e);
   }
 }
 export async function deleteBooksByName(bookname) {
   try {
-    await prisma.book.deleteMany({ where: { title: bookname } });
+    const toBeDeletedBook = await prisma.book.findFirst({
+      where: { title: bookname },
+    });
+    await prisma.book.deleteMany({
+      where: { title: bookname },
+    });
+    toBeDeletedBook.indexes.forEach((index) =>
+      client
+        .index(index)
+        .deleteDocuments({ filter: { fileId: toBeDeletedBook.id } }),
+    );
+  } catch (e) {
+    console.log("error happened removing books by name \n", e);
+  }
+}
+export async function deleteBooksByTag(tag) {
+  try {
+    const toBeDeletedBooks = await prisma.book.findMany({
+      where: { tags: { some: { name: { equals: tag } } } },
+    });
+    await prisma.book.deleteMany({
+      where: { id: { in: toBeDeletedBooks.map((tbdb) => tbdb.id) } },
+    });
+    toBeDeletedBooks.forEach((tbdb) =>
+      tbdb.indexes.forEach((index) =>
+        client.index(index).deleteDocuments({ filter: { fileId: tbdb.id } }),
+      ),
+    );
+    return toBeDeletedBooks.map((tbdb) => ({
+      title: tbdb.title,
+      relativepath: tbdb.path,
+    }));
   } catch (e) {
     console.log("error happened removing books by name \n", e);
   }
 }
 export async function deleteBooksByPathandName(relativePath, name) {
   try {
-    await prisma.book.deleteMany({
+    const toBeDeletedBook = await prisma.book.findFirst({
       where: { path: relativePath, title: name },
     });
+    const deletedBook = await prisma.book.delete({
+      where: { id: toBeDeletedBook.id },
+    });
+    deletedBook.indexes.forEach((index) =>
+      client
+        .index(index)
+        .deleteDocuments({ filter: `fileId = ${deletedBook.id}` }),
+    );
   } catch (e) {
-    console.log("error happened removing books by name \n", e);
+    console.log("error happened removing books by PathandName \n", e);
   }
 }
-export async function groupByPath() {
+
+export async function groupByPath(paramsPath) {
   try {
     const results = await prisma.book.findMany({
       distinct: "path",
       select: { path: true },
+      where: { path: { contains: paramsPath } },
     });
     const paths = results.map((res) => res.path);
     const pathSet = new Set(paths);
@@ -323,12 +357,10 @@ export async function groupByPath() {
       depth: path === "/" ? 1 : path.split("/").length,
     }));
     const pathMap = new Map();
-
     for (const { path, depth } of pathDepths) {
       const parentPaths = pathDepths.filter(
         (p) => p.path.startsWith(path) && p.depth === depth + 1,
       );
-
       pathMap.set(
         path,
         parentPaths.map((sub) => sub.path.replace(path, "")),
@@ -469,5 +501,42 @@ export async function updateBooksPaths(bookTitle, bookPath, newPath) {
     });
   } catch (e) {
     console.log(e);
+  }
+}
+export async function getIndexes(bookId) {
+  try {
+    return (await prisma.book.findUnique({ where: { id: bookId } })).indexes;
+  } catch (e) {
+    console.error(e);
+  }
+}
+export async function updateIndexes(bookId, index) {
+  try {
+    return await prisma.book.update({
+      where: { id: bookId },
+      data: { indexes: { push: index } },
+    });
+  } catch (e) {
+    console.error(e);
+  }
+}
+export async function removeIndex(index) {
+  try {
+    const havingIndex = await prisma.book.findMany({
+      where: { indexes: { has: index } },
+      select: { id: true, indexes: true },
+    });
+    const updatingPromises = havingIndex.map(
+      async (entry) =>
+        await prisma.book.update({
+          where: { id: entry.id },
+          data: {
+            indexes: { set: entry.indexes.filter((ind) => ind != index) },
+          },
+        }),
+    );
+    return await Promise.all(updatingPromises);
+  } catch (e) {
+    console.error(e);
   }
 }

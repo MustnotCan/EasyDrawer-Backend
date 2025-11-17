@@ -48,7 +48,7 @@ RUN npm install --omit=dev
 COPY --from=build /app/src ./src
 COPY --from=build /app/node_modules/@prisma ./node_modules/@prisma
 COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-
+COPY --from=build /app/prisma ./prisma
 # Set up directories
 RUN mkdir -p /pdfs /thumbnails && \
     chown -R node /pdfs /thumbnails

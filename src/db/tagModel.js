@@ -86,7 +86,7 @@ export async function getAllTags() {
     existingTagsName = existingTagsName.map((tag) => ({
       name: tag.name,
       id: tag.id,
-      booksCount: tag.book ? new Set(tag.book.map((bk) => bk.title)).size : 0,
+      booksCount: tag.book ? tag.book.length : 0,
     }));
 
     return existingTagsName;

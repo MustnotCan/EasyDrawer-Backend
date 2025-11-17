@@ -103,7 +103,6 @@ services:
   back-end:
     container_name: pdfmanbackend
     image: pdfmanapp/pdfmanbackend:latest
-    shm_size: "4g"
     environment:
       DATABASE_URL: postgresql://myuser:mypassword@db:5432/PDFMAN
       FOLDER_PATH: /pdfs/
@@ -114,7 +113,6 @@ services:
       - "3001:3001"
     depends_on:
       - db
-      - migrator
     volumes:
       - /path/to/pdfs/folder:/pdfs:rw
       - thumbnails:/thumbnails:rw
@@ -143,14 +141,6 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-
-  migrator:
-    image: pdfmanapp/prismamigration:latest
-    environment:
-      - DATABASE_URL=postgresql://myuser:mypassword@db:5432/PDFMAN
-    depends_on:
-      - db
-    restart: "no"
 
 volumes:
   pgdata:

@@ -1,11 +1,10 @@
-import { saveBook, findBooksByPathAndTitle } from "../../db/bookModel.js";
+import { saveBook, findBooksByPathAndTitle } from "../db/bookModel.js";
 import { join } from "node:path";
 import { env } from "node:process";
 /**
  * takes a pdf path and add it to db
  * @param {string} filePath
  * @type {object}
- * @returns {object} {filePath, thumbnailPath, savedBook}
  */
 export async function addPdfToDb(file) {
   let fullPath = file.fullPath;
@@ -34,4 +33,8 @@ export async function addPdfToDb(file) {
     thumbnailPath = env.THUMBNAIL_FOLDER + savedBook.id + ".webp";
   }
   return { fullPath, thumbnailPath, savedBook };
+}
+// files must be an array of pdfFile class instances
+export function addFilesToDb(files) {
+  return files.map((file) => addPdfToDb(file));
 }

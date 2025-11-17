@@ -3,13 +3,12 @@ import json
 import pymupdf
 import uuid
 
+
 filePath=sys.argv[1]
 fileId=sys.argv[2]
 with pymupdf.open(filePath) as doc:
     metadata=doc.metadata
     sharedObject={}
-    for key in ["title","author","keywords"]:
-        sharedObject[key]=metadata[key]
     sharedObject["fileId"]=fileId
     returnedObject={}
     for (page) in doc:
@@ -25,4 +24,4 @@ with pymupdf.open(filePath) as doc:
             returnedObject[key]=sharedObject[key]
         returnedObject["page"]=page.number +1
         returnedObject["id"]=str(uuid.uuid4())
-        print(json.dumps(returnedObject),end="|||||dump|||||")
+        print(json.dumps(returnedObject))

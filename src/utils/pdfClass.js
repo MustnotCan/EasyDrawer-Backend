@@ -1,4 +1,3 @@
-import { addPdfToDb } from "./pdfsOperation/addPdfToDb.js";
 import { env } from "node:process";
 import { join } from "path";
 import { v5 as uuidv5 } from "uuid";
@@ -25,7 +24,7 @@ export default class PdfFile {
       : lastModified;
     this.addedDate = !addedDate ? new Date(Date.now()) : addedDate;
     this.uuid = uuidv5(relativePath + name, uuidv5.URL);
-    this.thumbnail = uuidv5(name, uuidv5.URL);
+    this.thumbnail = uuidv5(name, uuidv5.URL) + ".webp";
   }
   // Unclassified/aaaah/CSS-Cheat-Sheet.pdf
   static getNameAndRelativePath(relativePathWithName) {
@@ -52,10 +51,5 @@ export default class PdfFile {
     const { name, relativePath } =
       this.getNameAndRelativePath(relativePathWithName);
     return new PdfFile(name, relativePath);
-  }
-
-  // files must be an array of pdfFile class instances
-  static async addFilesToDb(files) {
-    files.forEach((file) => addPdfToDb(file));
   }
 }

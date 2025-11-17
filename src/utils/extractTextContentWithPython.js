@@ -1,5 +1,7 @@
 import { spawn } from "child_process";
-export default function indexFile(path, fileId) {
+import { createInterface } from "readline/promises";
+
+export default function extractText(path, fileId) {
   const controller = new AbortController();
   return new Promise((resolve, reject) => {
     let lastDonePage = 0;
@@ -13,35 +15,28 @@ export default function indexFile(path, fileId) {
         killSignal: "SIGKILL",
       },
     );
+    const rl = createInterface(py.stdout);
     const timeout = setInterval(() => {
-      if (currentPage == lastDonePage) {
+      if (currentPage === lastDonePage) {
         controller.abort();
       } else {
         currentPage = lastDonePage;
       }
     }, 10000);
-    py.on("error", () => {
-      clearTimeout(timeout);
-      reject(path);
+    rl.on("line", (line) => {
+      try {
+        const obj = JSON.parse(line);
+        lastDonePage = obj.page;
+        documents.push(obj);
+      } catch {
+        console.log("Bad NDJSON line:", line);
+      }
     });
-    py.stderr.on("error", (err) => console.log(err));
-    py.stderr.on("data", (data) => console.log(String(data)));
-    py.stdout.on("data", (data) => {
-      String(data)
-        .split("|||||dump|||||")
-        .forEach((value, index, array) => {
-          if (value != "" && index < array.length) {
-            try {
-              const parsedDoc = JSON.parse(value);
-              lastDonePage = parsedDoc["page"];
-              documents.push(parsedDoc);
-            } catch {
-              console.log("unable to parse this value : ", value);
-            }
-          }
-        });
+    py.on("error", (err) => {
+      reject(err);
     });
     py.stdout.on("end", () => {
+      clearInterval(timeout);
       resolve(documents);
     });
   });
